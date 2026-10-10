@@ -90,7 +90,6 @@ export default function Home() {
 
   useEffect(() => {
     if(!user)return;
-    void supabase.from("categories").select("id,name,applies_to").eq("user_id",user.id).is("parent_id",null).order("name").then(({data,error})=>{if(!error)setPersonalCategories((data??[]) as {id:string;name:string;applies_to:string}[]);});
     void supabase.from("categories").select("id,name,applies_to,parent_id").eq("user_id",user.id).order("name").then(({data,error})=>{if(!error)setPersonalCategories((data??[]) as {id:string;name:string;applies_to:string;parent_id:string|null}[]);});
     void supabase.from("profiles").select("financial_month_start_day").eq("id",user.id).maybeSingle().then(({data})=>{if(data?.financial_month_start_day)setMonthStartDay(Number(data.financial_month_start_day));});
   },[user,supabase]);
