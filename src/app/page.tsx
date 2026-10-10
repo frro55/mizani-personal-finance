@@ -7,6 +7,9 @@ import { createClient } from "@/lib/supabase/client";
 
 type Tx = { id: string; title: string; category: string; date: string; amount: number; kind: "income" | "expense" };
 type TransactionRow = { id: string; type: "income" | "expense"; amount_minor: number | string; occurred_at: string; description: string | null; categories: { name: string } | { name: string }[] | null };
+type Debt = { id:string; name:string; current_balance_minor:number; installment_minor:number; next_due_date:string|null; debt_type:"fixed"|"variable"; provider:string; monthly_due_day:number|null; total_installments:number|null };
+type DebtInstallment = { id:string; debt_id:string; installment_number:number; due_date:string; amount_minor:number; paid_at:string|null; payment_note:string };
+type VariableRow = {due_date:string;amount:string};
 function errorMessage(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback;
 }
@@ -32,7 +35,12 @@ export default function Home() {
   const [active,setActive] = useState("نظرة عامة");
   const [menu,setMenu] = useState(false);
   const [notice,setNotice] = useState("");
-  const [debts,setDebts] = useState<{id:string;name:string;current_balance_minor:number;installment_minor:number;next_due_date:string|null}[]>([]);
+  const [debts,setDebts] = useState<Debt[]>([]);
+  const [installments,setInstallments] = useState<DebtInstallment[]>([]);
+  const [debtType,setDebtType] = useState<"fixed"|"variable">("fixed");
+  const [debtProvider,setDebtProvider] = useState("");
+  const [debtTotalCount,setDebtTotalCount] = useState("12");
+  const [variableRows,setVariableRows] = useState<VariableRow[]>([{due_date:new Date().toISOString().slice(0,10),amount:""}]);
   const [budgets,setBudgets] = useState<{id:string;name:string;amount_minor:number;period:string;starts_on:string;ends_on:string|null}[]>([]);
   const [csvRows,setCsvRows] = useState<{date:string;description:string;amount:number;type:"income"|"expense"}[]>([]);
   const [csvName,setCsvName] = useState("");
@@ -117,73 +125,66 @@ export default function Home() {
         .then(({data,error}) => { if(error) setNotice(error.message); else setBudgets((data ?? []) as typeof budgets); });
     }
     if (active === "الديون والأقساط") {
-      void supabase.from("debts").select("id,name,current_balance_minor,installment_minor,next_due_date").eq("user_id",user.id).order("created_at",{ascending:false})
-        .then(({data,error}) => { if(error) setNotice(error.message); else setDebts((data ?? []) as typeof debts); });
+      void Promise.all([
+        supabase.from("debts").select("id,name,current_balance_minor,installment_minor,next_due_date,debt_type,provider,monthly_due_day,total_installments").eq("user_id",user.id).order("created_at",{ascending:false}),
+        supabase.from("debt_installments").select("id,debt_id,installment_number,due_date,amount_minor,paid_at,payment_note").eq("user_id",user.id).order("due_date",{ascending:true})
+      ]).then(([dr,ir])=>{if(dr.error)setNotice(dr.error.message);else setDebts((dr.data??[]) as Debt[]);if(ir.error)setNotice(ir.error.message);else setInstallments((ir.data??[]) as DebtInstallment[]);});
     }
   },[active,user,supabase]);
 
-  async function saveDebt(e: React.FormEvent) {
-    e.preventDefault();
-    if (!user) return;
-    const balance = Number(debtBalance);
-    const installment = Number(debtInstallment);
-    if (!debtName.trim() || !Number.isFinite(balance) || balance <= 0 || !Number.isFinite(installment) || installment <= 0 || !debtDueDate) {
-      setNotice("أدخل اسم الدين والرصيد والقسط وتاريخ الاستحقاق بشكل صحيح.");
-      return;
-    }
-    setBusy(true); setNotice("");
-    try {
-      const {error} = await supabase.from("debts").insert({
-        user_id:user.id, name:debtName.trim(),
-        original_amount_minor:Math.round(balance*100),
-        current_balance_minor:Math.round(balance*100),
-        installment_minor:Math.round(installment*100),
-        next_due_date:debtDueDate
-      });
-      if(error) throw error;
-      const {data,error:loadError} = await supabase.from("debts").select("id,name,current_balance_minor,installment_minor,next_due_date").eq("user_id",user.id).order("created_at",{ascending:false});
-      if(loadError) throw loadError;
-      setDebts((data ?? []) as typeof debts);
-      setDebtForm(false);setDebtName("");setDebtBalance("");setDebtInstallment("");
-      setNotice("تم حفظ الدين وجدولة الأقساط المتبقية.");
-    } catch(e:unknown) { setNotice(errorMessage(e,"تعذر حفظ الدين.")); }
-    finally { setBusy(false); }
+  async function refreshDebts(uid:string) {
+    const [dr,ir]=await Promise.all([
+      supabase.from("debts").select("id,name,current_balance_minor,installment_minor,next_due_date,debt_type,provider,monthly_due_day,total_installments").eq("user_id",uid).order("created_at",{ascending:false}),
+      supabase.from("debt_installments").select("id,debt_id,installment_number,due_date,amount_minor,paid_at,payment_note").eq("user_id",uid).order("due_date",{ascending:true})
+    ]);
+    if(dr.error) throw dr.error;if(ir.error) throw ir.error;
+    setDebts((dr.data??[]) as Debt[]);setInstallments((ir.data??[]) as DebtInstallment[]);
   }
-
-  async function markDebtPayment(debt: typeof debts[number]) {
-    if(!user) return;
-    const remaining = Math.max(0,Number(debt.current_balance_minor)-Number(debt.installment_minor));
-    const nextDate = debt.next_due_date ? new Date(debt.next_due_date+"T12:00:00") : new Date();
-    nextDate.setMonth(nextDate.getMonth()+1);
-    const nextDue = remaining > 0 ? nextDate.toISOString().slice(0,10) : null;
+  function addVariableRow(){setVariableRows(rows=>[...rows,{due_date:rows[rows.length-1]?.due_date||new Date().toISOString().slice(0,10),amount:""}]);}
+  async function saveDebt(e:React.FormEvent) {
+    e.preventDefault();if(!user)return;
+    if(!debtName.trim()){setNotice("أدخل اسم الالتزام.");return;}
+    let rows:{installment_number:number;due_date:string;amount_minor:number}[]=[];
+    if(debtType==="fixed"){
+      const balance=Math.round(Number(debtBalance)*100), installment=Math.round(Number(debtInstallment)*100), count=Number(debtTotalCount);
+      if(!Number.isFinite(balance)||balance<=0||!Number.isFinite(installment)||installment<=0||!Number.isInteger(count)||count<1||count>600||!debtDueDate){setNotice("تحقق من الرصيد والقسط وعدد الأقساط والتاريخ.");return;}
+      const first=new Date(debtDueDate+"T12:00:00");let remaining=balance;
+      for(let i=0;i<count&&remaining>0;i++){const date=new Date(first.getFullYear(),first.getMonth()+i,1,12);const day=Math.min(first.getDate(),new Date(date.getFullYear(),date.getMonth()+1,0).getDate());date.setDate(day);const amountMinor=Math.min(installment,remaining);rows.push({installment_number:i+1,due_date:date.toISOString().slice(0,10),amount_minor:amountMinor});remaining-=amountMinor;}
+      if(remaining>0){setNotice("عدد الأقساط لا يغطي الرصيد كاملًا. زِد عدد الأقساط.");return;}
+    }else{
+      rows=variableRows.map((r,i)=>({installment_number:i+1,due_date:r.due_date,amount_minor:Math.round(Number(r.amount)*100)})).sort((x,y)=>x.due_date.localeCompare(y.due_date)).map((r,i)=>({...r,installment_number:i+1}));
+      if(!rows.length||rows.some(r=>!r.due_date||!Number.isFinite(r.amount_minor)||r.amount_minor<=0)){setNotice("أدخل تاريخًا ومبلغًا صحيحًا لكل دفعة.");return;}
+    }
+    const total=rows.reduce((s,r)=>s+r.amount_minor,0), firstDate=[...rows].sort((x,y)=>x.due_date.localeCompare(y.due_date))[0].due_date;
     setBusy(true);setNotice("");
-    try {
-      const {error} = await supabase.from("debts").update({current_balance_minor:remaining,next_due_date:nextDue}).eq("id",debt.id).eq("user_id",user.id);
-      if(error) throw error;
-      const {data,error:loadError} = await supabase.from("debts").select("id,name,current_balance_minor,installment_minor,next_due_date").eq("user_id",user.id).order("created_at",{ascending:false});
-      if(loadError) throw loadError;
-      setDebts((data ?? []) as typeof debts);
-      setNotice(remaining===0?"مبروك! تم تسجيل سداد آخر قسط.":"تم تسجيل سداد القسط وتحديث موعد القسط القادم.");
-    } catch(e:unknown) {setNotice(errorMessage(e,"تعذر تسجيل السداد."));}
-    finally {setBusy(false);}
+    try{
+      const {data:debt,error}=await supabase.from("debts").insert({user_id:user.id,name:debtName.trim(),provider:debtProvider.trim(),debt_type:debtType,original_amount_minor:total,current_balance_minor:total,installment_minor:debtType==="fixed"?Math.round(Number(debtInstallment)*100):Math.max(...rows.map(r=>r.amount_minor)),next_due_date:firstDate,monthly_due_day:debtType==="fixed"?new Date(debtDueDate+"T12:00:00").getDate():null,total_installments:rows.length,start_date:firstDate}).select("id").single();
+      if(error)throw error;
+      const {error:ie}=await supabase.from("debt_installments").insert(rows.map(r=>({...r,user_id:user.id,debt_id:debt.id})));
+      if(ie){await supabase.from("debts").delete().eq("id",debt.id).eq("user_id",user.id);throw ie;}
+      await refreshDebts(user.id);setDebtForm(false);setDebtName("");setDebtBalance("");setDebtInstallment("");setDebtProvider("");setDebtTotalCount("12");setDebtType("fixed");setVariableRows([{due_date:new Date().toISOString().slice(0,10),amount:""}]);setNotice("تم حفظ الالتزام وإنشاء مواعيد الاستحقاق.");
+    }catch(e:unknown){setNotice(errorMessage(e,"تعذر حفظ الالتزام وجدول الأقساط."));}finally{setBusy(false);}
   }
-
-  function getSchedule(debt: typeof debts[number]) {
-    const schedule: {date:string;amount:number;balance:number}[] = [];
-    let balance = Number(debt.current_balance_minor);
-    if (!debt.next_due_date || balance <= 0 || Number(debt.installment_minor) <= 0) return schedule;
-    const first = new Date(debt.next_due_date+"T12:00:00");
-    for(let i=0;i<120 && balance>0;i++) {
-      const date = new Date(first);
-      const targetMonth = first.getMonth()+i;
-      date.setDate(1); date.setMonth(targetMonth);
-      const day = Math.min(first.getDate(),new Date(date.getFullYear(),date.getMonth()+1,0).getDate());
-      date.setDate(day);
-      const paid = Math.min(balance,Number(debt.installment_minor));
-      balance -= paid;
-      schedule.push({date:date.toISOString().slice(0,10),amount:paid/100,balance:balance/100});
-    }
-    return schedule;
+  async function markInstallmentPaid(item:DebtInstallment){
+    if(!user||item.paid_at)return;setBusy(true);setNotice("");
+    try{
+      const {error}=await supabase.from("debt_installments").update({paid_at:new Date().toISOString()}).eq("id",item.id).eq("user_id",user.id).is("paid_at",null);if(error)throw error;
+      const debt=debts.find(d=>d.id===item.debt_id);
+      if(debt){const remaining=Math.max(0,Number(debt.current_balance_minor)-Number(item.amount_minor));const next=installments.filter(i=>i.debt_id===item.debt_id&&i.id!==item.id&&!i.paid_at).sort((x,y)=>x.due_date.localeCompare(y.due_date))[0];const {error:ue}=await supabase.from("debts").update({current_balance_minor:remaining,next_due_date:next?.due_date??null}).eq("id",debt.id).eq("user_id",user.id);if(ue)throw ue;}
+      await refreshDebts(user.id);setNotice("تم تسجيل سداد الدفعة وتحديث الرصيد.");
+    }catch(e:unknown){setNotice(errorMessage(e,"تعذر تسجيل السداد."));}finally{setBusy(false);}
+  }
+  async function deleteDebt(debt:Debt){
+    if(!user||!window.confirm("تأكيد حذف "+debt.name+" وجميع أقساطه؟ لا يمكن التراجع."))return;setBusy(true);setNotice("");
+    try{const {error}=await supabase.from("debts").delete().eq("id",debt.id).eq("user_id",user.id);if(error)throw error;await refreshDebts(user.id);setNotice("تم حذف الالتزام وجميع أقساطه.");}
+    catch(e:unknown){setNotice(errorMessage(e,"تعذر حذف الالتزام."));}finally{setBusy(false);}
+  }
+  function installmentStatus(item:DebtInstallment){
+    if(item.paid_at)return {label:"مسدد",className:"moneyIn"};
+    const today=new Date().toISOString().slice(0,10);
+    if(item.due_date<today)return {label:"متأخر",className:"moneyOut"};
+    if(item.due_date===today)return {label:"مستحق اليوم",className:"moneyOut"};
+    return {label:"قادم",className:""};
   }
 
   function readCsv(file: File) {
@@ -239,10 +240,18 @@ export default function Home() {
       </>}
       {active==="العمليات المالية" && <section className="panel"><div className="panelHead"><div><h3>كل العمليات المالية</h3><p>{filtered.length} عملية مسجلة</p></div><label className="search"><Search size={17}/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="ابحث بالاسم أو التصنيف"/></label></div><div className="tableWrap"><table><thead><tr><th>العملية</th><th>النوع</th><th>التصنيف</th><th>التاريخ</th><th>المبلغ</th></tr></thead><tbody>{filtered.map(t=><tr key={t.id}><td><b>{t.title}</b></td><td>{t.kind==="income"?"دخل":"مصروف"}</td><td><span className="tag">{t.category}</span></td><td>{t.date}</td><td className={t.kind==="income"?"moneyIn":"moneyOut"}>{t.kind==="income"?"+":"−"}{formatSAR(t.amount)}</td></tr>)}</tbody></table>{!filtered.length&&<p className="empty">لا توجد عمليات مطابقة للبحث.</p>}</div><button className="primary" style={{marginTop:16}} onClick={()=>setModal(true)}><Plus size={17}/> إضافة عملية</button></section>}
       {active==="الميزانيات" && <section className="panel"><div className="panelHead"><div><h3>الميزانيات</h3><p>الميزانيات الأسبوعية والشهرية والسنوية المحفوظة</p></div></div>{budgets.length===0?<p className="empty">لا توجد ميزانيات بعد. هذه الصفحة جاهزة لعرض ميزانياتك المحفوظة.</p>:<div className="tableWrap"><table><thead><tr><th>الميزانية</th><th>الفترة</th><th>الحد المالي</th><th>بداية الميزانية</th><th>النهاية</th></tr></thead><tbody>{budgets.map(b=><tr key={b.id}><td><b>{b.name}</b></td><td>{({weekly:"أسبوعية",monthly:"شهرية",yearly:"سنوية"} as Record<string,string>)[b.period]||b.period}</td><td>{formatSAR(Number(b.amount_minor)/100)}</td><td>{b.starts_on}</td><td>{b.ends_on||"—"}</td></tr>)}</tbody></table></div>}</section>}
-      {active==="الديون والأقساط" && <section className="panel"><div className="panelHead"><div><h3>الديون والأقساط</h3><p>الأرصدة المتبقية وجدول كل قسط شهري حتى السداد</p></div><button className="primary" onClick={()=>setDebtForm(!debtForm)}><Plus size={17}/>{debtForm?"إلغاء":"إضافة دين أو قسط"}</button></div>
-      {debtForm&&<form onSubmit={saveDebt} style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:12,padding:16,background:"#f7fafc",borderRadius:12,marginBottom:18}}><label style={{display:"grid",gap:6}}>اسم الدين أو الجهة<input required value={debtName} onChange={e=>setDebtName(e.target.value)} placeholder="مثال: قسط السيارة"/></label><label style={{display:"grid",gap:6}}>الرصيد المتبقي (ريال)<input required type="number" min="0.01" step="0.01" value={debtBalance} onChange={e=>setDebtBalance(e.target.value)} placeholder="25000"/></label><label style={{display:"grid",gap:6}}>القسط الشهري (ريال)<input required type="number" min="0.01" step="0.01" value={debtInstallment} onChange={e=>setDebtInstallment(e.target.value)} placeholder="1365"/></label><label style={{display:"grid",gap:6}}>تاريخ القسط القادم<input required type="date" value={debtDueDate} onChange={e=>setDebtDueDate(e.target.value)}/></label><button className="primary" type="submit" disabled={busy} style={{justifyContent:"center"}}>{busy?"جارٍ الحفظ...":"حفظ الدين وإنشاء الجدول"}</button></form>}
-      {debts.length===0?<p className="empty">ما أضفت أي دين حتى الآن. أضف قسط السيارة أو أي التزام، وراح يظهر لك جدول مواعيد الأقساط المتبقية.</p>:<div style={{display:"grid",gap:16}}>{debts.map(d=>{const schedule=getSchedule(d);return <article key={d.id} style={{border:"1px solid var(--line)",borderRadius:12,padding:16}}><div style={{display:"flex",justifyContent:"space-between",gap:12,flexWrap:"wrap",alignItems:"center"}}><div><h3 style={{margin:"0 0 8px"}}>{d.name}</h3><p style={{color:"var(--muted)",margin:0,fontSize:12}}>القسط الشهري: {formatSAR(Number(d.installment_minor)/100)} · القادم: {d.next_due_date||"تم السداد بالكامل"}</p></div><div style={{textAlign:"left"}}><b style={{fontSize:19}}>{formatSAR(Number(d.current_balance_minor)/100)}</b><small style={{display:"block",color:"var(--muted)"}}>الرصيد المتبقي</small></div></div>{schedule.length>0&&<><h4 style={{margin:"18px 0 8px"}}>جدول الأقساط المتبقية ({schedule.length})</h4><div className="tableWrap"><table><thead><tr><th>رقم القسط</th><th>تاريخ الاستحقاق</th><th>مبلغ القسط</th><th>الرصيد بعد السداد</th></tr></thead><tbody>{schedule.map((item,index)=><tr key={item.date}><td>{index+1}</td><td>{new Date(item.date+"T12:00:00").toLocaleDateString("ar-SA",{year:"numeric",month:"long",day:"numeric"})}</td><td>{formatSAR(item.amount)}</td><td>{formatSAR(item.balance)}</td></tr>)}</tbody></table></div><button className="outline" disabled={busy} onClick={()=>void markDebtPayment(d)} style={{marginTop:12}}>تسجيل سداد القسط القادم</button></>}{schedule.length===0&&<p className="empty">تم سداد الدين بالكامل أو لم يتم تحديد موعد قسط قادم.</p>}</article>})}</div>}</section>}
-      {active==="التقارير والتحليلات" && <div className="cards"><article className="stat"><span>إجمالي الدخل</span><div className="statIcon green"><TrendingUp/></div><strong>{formatSAR(income)}</strong><small>{tx.filter(t=>t.kind==="income").length} عملية دخل</small></article><article className="stat"><span>إجمالي المصروفات</span><div className="statIcon red"><TrendingDown/></div><strong>{formatSAR(expense)}</strong><small>{tx.filter(t=>t.kind==="expense").length} عملية مصروف</small></article><article className="stat"><span>صافي التدفق</span><div className="statIcon blue"><Wallet/></div><strong>{formatSAR(income-expense)}</strong><small>حسب جميع العمليات المسجلة</small></article><section className="panel" style={{gridColumn:"1 / -1"}}><h3>ملخص حسب التصنيف</h3><div className="tableWrap"><table><thead><tr><th>التصنيف</th><th>عدد العمليات</th><th>الدخل</th><th>المصروفات</th><th>الصافي</th></tr></thead><tbody>{Array.from(new Set(tx.map(t=>t.category))).map(cat=>{const rows=tx.filter(t=>t.category===cat);const inc=rows.filter(t=>t.kind==="income").reduce((s,t)=>s+t.amount,0);const exp=rows.filter(t=>t.kind==="expense").reduce((s,t)=>s+t.amount,0);return <tr key={cat}><td>{cat}</td><td>{rows.length}</td><td className="moneyIn">{formatSAR(inc)}</td><td className="moneyOut">{formatSAR(exp)}</td><td>{formatSAR(inc-exp)}</td></tr>})}</tbody></table>{tx.length===0&&<p className="empty">أضف عمليات مالية حتى تظهر التحليلات هنا.</p>}</div></section></div>}
+      {active==="الديون والأقساط" && <section className="panel">
+      <div className="panelHead"><div><h3>الالتزامات والأقساط</h3><p>مواعيد الاستحقاق والمتأخرات والمدفوعات</p></div><button className="primary" onClick={()=>setDebtForm(!debtForm)}><Plus size={17}/>{debtForm?"إلغاء":"إضافة التزام"}</button></div>
+      {debtForm&&<form onSubmit={saveDebt} style={{display:"grid",gap:14,padding:16,background:"#f7fafc",borderRadius:12,marginBottom:18}}>
+        <div className="switch"><button type="button" className={debtType==="fixed"?"selected":""} onClick={()=>setDebtType("fixed")}>قسط ثابت شهري</button><button type="button" className={debtType==="variable"?"selected":""} onClick={()=>setDebtType("variable")}>خطة دفعات متغيرة</button></div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:12}}><label style={{display:"grid",gap:6}}>اسم الالتزام<input required value={debtName} onChange={e=>setDebtName(e.target.value)} placeholder="قسط السيارة، تابي، تمارا"/></label><label style={{display:"grid",gap:6}}>الجهة (اختياري)<input value={debtProvider} onChange={e=>setDebtProvider(e.target.value)} placeholder="البنك، تابي، تمارا"/></label></div>
+        {debtType==="fixed"?<div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:12}}><label style={{display:"grid",gap:6}}>الرصيد المتبقي الإجمالي<input required type="number" min="0.01" step="0.01" value={debtBalance} onChange={e=>setDebtBalance(e.target.value)} placeholder="16380"/></label><label style={{display:"grid",gap:6}}>القسط الشهري<input required type="number" min="0.01" step="0.01" value={debtInstallment} onChange={e=>setDebtInstallment(e.target.value)} placeholder="1365"/></label><label style={{display:"grid",gap:6}}>أول تاريخ استحقاق<input required type="date" value={debtDueDate} onChange={e=>setDebtDueDate(e.target.value)}/></label><label style={{display:"grid",gap:6}}>عدد الأقساط المتبقية<input required type="number" min="1" max="600" value={debtTotalCount} onChange={e=>setDebtTotalCount(e.target.value)}/></label></div>:<div style={{display:"grid",gap:10}}><p style={{margin:0,color:"var(--muted)",lineHeight:1.8}}>أدخل دفعات خطة الشراء مرة واحدة فقط.</p>{variableRows.map((row,index)=><div key={index} style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr)) auto",gap:10,alignItems:"end"}}><label style={{display:"grid",gap:6}}>موعد الدفعة {index+1}<input required type="date" value={row.due_date} onChange={e=>setVariableRows(rows=>rows.map((r,i)=>i===index?{...r,due_date:e.target.value}:r))}/></label><label style={{display:"grid",gap:6}}>المبلغ<input required type="number" min="0.01" step="0.01" value={row.amount} onChange={e=>setVariableRows(rows=>rows.map((r,i)=>i===index?{...r,amount:e.target.value}:r))}/></label><button type="button" className="outline" onClick={()=>setVariableRows(rows=>rows.filter((_,i)=>i!==index))} disabled={variableRows.length===1} aria-label="حذف الدفعة"><X size={16}/></button></div>)}<button type="button" className="outline" onClick={addVariableRow}><Plus size={16}/> إضافة دفعة للخطة</button></div>}
+        <button className="primary" type="submit" disabled={busy} style={{justifyContent:"center"}}>{busy?"جارٍ الحفظ...":"حفظ الالتزام وإنشاء جدول الاستحقاقات"}</button></form>}
+      <div className="cards" style={{gridTemplateColumns:"repeat(auto-fit,minmax(150px,1fr))"}}><article className="stat"><span>إجمالي المتبقي</span><strong>{formatSAR(debts.reduce((s,d)=>s+Number(d.current_balance_minor),0)/100)}</strong></article><article className="stat"><span>أقساط متأخرة</span><strong className="moneyOut">{installments.filter(i=>!i.paid_at&&i.due_date<new Date().toISOString().slice(0,10)).length}</strong></article><article className="stat"><span>استحقاقات قادمة</span><strong>{installments.filter(i=>!i.paid_at&&i.due_date>=new Date().toISOString().slice(0,10)).length}</strong></article></div>
+      {debts.length===0?<p className="empty">ما فيه التزامات مسجلة. أضف القسط الثابت أو خطة تابي/تمارا.</p>:<div style={{display:"grid",gap:16}}>{debts.map(debt=>{const items=installments.filter(i=>i.debt_id===debt.id).sort((x,y)=>x.due_date.localeCompare(y.due_date));const overdue=items.filter(i=>!i.paid_at&&i.due_date<new Date().toISOString().slice(0,10));return <article key={debt.id} style={{border:"1px solid var(--line)",borderRadius:12,padding:16}}>
+      <div style={{display:"flex",justifyContent:"space-between",gap:12,flexWrap:"wrap",alignItems:"center"}}><div><h3 style={{margin:"0 0 6px"}}>{debt.name}</h3><p style={{margin:0,color:"var(--muted)",fontSize:12}}>{debt.provider||(debt.debt_type==="fixed"?"قسط ثابت":"دفعات متغيرة")} · {items.length} دفعة · {overdue.length?"متأخر "+overdue.length:"لا توجد متأخرات"}</p></div><div style={{display:"flex",alignItems:"center",gap:12}}><div style={{textAlign:"left"}}><b style={{fontSize:18}}>{formatSAR(Number(debt.current_balance_minor)/100)}</b><small style={{display:"block",color:"var(--muted)"}}>المتبقي</small></div><button className="close" title="حذف الالتزام" onClick={()=>void deleteDebt(debt)}><X size={16}/></button></div></div>
+      <div className="tableWrap" style={{marginTop:14}}><table><thead><tr><th>الدفعة</th><th>تاريخ الاستحقاق</th><th>المبلغ</th><th>الحالة</th><th>الإجراء</th></tr></thead><tbody>{items.map(item=>{const status=installmentStatus(item);return <tr key={item.id}><td>{item.installment_number}</td><td>{new Date(item.due_date+"T12:00:00").toLocaleDateString("ar-SA",{year:"numeric",month:"short",day:"numeric"})}</td><td>{formatSAR(Number(item.amount_minor)/100)}</td><td><span className={status.className}>{status.label}</span></td><td>{item.paid_at?<span>تم السداد {new Date(item.paid_at).toLocaleDateString("ar-SA")}</span>:<button className="outline" disabled={busy} onClick={()=>void markInstallmentPaid(item)}>تسجيل السداد</button>}</td></tr>})}</tbody></table></div></article>})}</div>}
+    </section>}{active==="التقارير والتحليلات" && <div className="cards"><article className="stat"><span>إجمالي الدخل</span><div className="statIcon green"><TrendingUp/></div><strong>{formatSAR(income)}</strong><small>{tx.filter(t=>t.kind==="income").length} عملية دخل</small></article><article className="stat"><span>إجمالي المصروفات</span><div className="statIcon red"><TrendingDown/></div><strong>{formatSAR(expense)}</strong><small>{tx.filter(t=>t.kind==="expense").length} عملية مصروف</small></article><article className="stat"><span>صافي التدفق</span><div className="statIcon blue"><Wallet/></div><strong>{formatSAR(income-expense)}</strong><small>حسب جميع العمليات المسجلة</small></article><section className="panel" style={{gridColumn:"1 / -1"}}><h3>ملخص حسب التصنيف</h3><div className="tableWrap"><table><thead><tr><th>التصنيف</th><th>عدد العمليات</th><th>الدخل</th><th>المصروفات</th><th>الصافي</th></tr></thead><tbody>{Array.from(new Set(tx.map(t=>t.category))).map(cat=>{const rows=tx.filter(t=>t.category===cat);const inc=rows.filter(t=>t.kind==="income").reduce((s,t)=>s+t.amount,0);const exp=rows.filter(t=>t.kind==="expense").reduce((s,t)=>s+t.amount,0);return <tr key={cat}><td>{cat}</td><td>{rows.length}</td><td className="moneyIn">{formatSAR(inc)}</td><td className="moneyOut">{formatSAR(exp)}</td><td>{formatSAR(inc-exp)}</td></tr>})}</tbody></table>{tx.length===0&&<p className="empty">أضف عمليات مالية حتى تظهر التحليلات هنا.</p>}</div></section></div>}
       {active==="استيراد كشف الحساب" && <section className="panel"><h3>استيراد كشف الحساب من CSV</h3><p style={{color:"var(--muted)",margin:"8px 0 18px",lineHeight:1.9}}>ارفع ملف CSV بأربعة أعمدة بالترتيب: التاريخ، الوصف، المبلغ، النوع. النوع يكون income أو expense (أو دخل أو مصروف). الصف الأول للعناوين.</p><label style={{display:"grid",gap:10,maxWidth:520}}>اختيار ملف CSV<input type="file" accept=".csv,text/csv" onChange={e=>{const file=e.target.files?.[0];if(file)readCsv(file);}}/></label>{csvName&&<p style={{marginTop:12}}>الملف: {csvName}</p>}{csvRows.length>0&&<><h3 style={{marginTop:22}}>معاينة قبل الحفظ ({csvRows.length} عملية)</h3><div className="tableWrap"><table><thead><tr><th>التاريخ</th><th>الوصف</th><th>النوع</th><th>المبلغ</th></tr></thead><tbody>{csvRows.slice(0,10).map((row,i)=><tr key={i}><td>{row.date}</td><td>{row.description}</td><td>{row.type==="income"?"دخل":"مصروف"}</td><td>{formatSAR(row.amount)}</td></tr>)}</tbody></table></div><button className="primary" style={{marginTop:16}} disabled={busy} onClick={()=>void importCsv()}>{busy?"جارٍ الاستيراد...":`حفظ ${csvRows.length} عملية في حسابك`}</button></>}</section>}
       <footer>ميزانيتي © ٢٠٢٦ <span>حفظ سحابي عبر Supabase</span></footer></section>{modal&&<div className="overlay" onClick={()=>setModal(false)}><section className="modal" onClick={e=>e.stopPropagation()}><div className="modalHead"><div><h2>إضافة عملية مالية</h2><p>سجّل دخلك أو مصروفك</p></div><button className="close" onClick={()=>setModal(false)}><X/></button></div><form onSubmit={add}><div className="switch"><button type="button" className={kind==="expense"?"selected":""} onClick={()=>setKind("expense")}>مصروف</button><button type="button" className={kind==="income"?"selected":""} onClick={()=>setKind("income")}>دخل</button></div><label>اسم العملية<input required value={title} onChange={e=>setTitle(e.target.value)} placeholder="مثال: فاتورة الكهرباء"/></label><label>المبلغ بالريال<input required type="number" min="0.01" step="0.01" value={amount} onChange={e=>setAmount(e.target.value)} placeholder="0.00"/></label><label>التصنيف<select value={category} onChange={e=>setCategory(e.target.value)}>{["متفرقات","راتب","منزل","طعام ومقاهي","سيارة","أقساط","فواتير","صحة","ترفيه","تسوق"].map(c=><option key={c}>{c}</option>)}</select></label><button className="primary full" disabled={busy} type="submit">{busy?"جارٍ الحفظ...":"حفظ العملية"}</button></form></section></div>}</main>;
 }
