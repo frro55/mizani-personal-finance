@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { User } from "@supabase/supabase-js";
-import { Wallet, Plus, TrendingUp, TrendingDown, Search, X, Menu, ShieldCheck, CreditCard, ChartNoAxesCombined, LayoutDashboard, ReceiptText, Target, FileUp, LogOut } from "lucide-react";
+import { Wallet, Plus, TrendingUp, TrendingDown, Search, X, Menu, ShieldCheck, CreditCard, ChartNoAxesCombined, LayoutDashboard, ReceiptText, Target, FileUp, LogOut, Settings, ChevronLeft, ChevronRight } from "lucide-react";
 import { formatSAR } from "@/lib/format";
 import { createClient } from "@/lib/supabase/client";
 
@@ -13,7 +13,7 @@ type VariableRow = {due_date:string;amount:string};
 function errorMessage(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback;
 }
-const nav = [["نظرة عامة",LayoutDashboard],["العمليات المالية",ReceiptText],["الميزانيات",Target],["الديون والأقساط",CreditCard],["التقارير والتحليلات",ChartNoAxesCombined],["استيراد كشف الحساب",FileUp]] as const;
+const nav = [["نظرة عامة",LayoutDashboard],["العمليات المالية",ReceiptText],["الميزانيات",Target],["الديون والأقساط",CreditCard],["التقارير والتحليلات",ChartNoAxesCombined],["استيراد كشف الحساب",FileUp],["الإعدادات",Settings]] as const;
 const expenseCategories = ["السكن","الأكل والمطاعم","المواصلات والسيارة","الفواتير والاتصالات","الصحة والعناية","التسوق","الترفيه","الأقساط والديون","الاشتراكات","التعليم","السفر","متفرقات"] as const;
 const incomeCategories = ["الراتب","عمل إضافي","دخل استثماري","مكافآت","استرداد مبالغ","دخل آخر"] as const;
 function normalizeCategory(value:string|null|undefined) {
@@ -47,6 +47,8 @@ export default function Home() {
   const [amount,setAmount] = useState("");
   const [category,setCategory] = useState("متفرقات");
   const [active,setActive] = useState("نظرة عامة");
+  const [monthStartDay,setMonthStartDay] = useState(1);
+  const [monthOffset,setMonthOffset] = useState(0);
   const [menu,setMenu] = useState(false);
   const [notice,setNotice] = useState("");
   const [debts,setDebts] = useState<Debt[]>([]);
@@ -69,6 +71,11 @@ export default function Home() {
   const [debtBalance,setDebtBalance] = useState("");
   const [debtInstallment,setDebtInstallment] = useState("");
   const [debtDueDate,setDebtDueDate] = useState(new Date().toISOString().slice(0,10));
+
+  useEffect(() => {
+    if(!user)return;
+    void supabase.from("profiles").select("financial_month_start_day").eq("id",user.id).maybeSingle().then(({data})=>{if(data?.financial_month_start_day)setMonthStartDay(Number(data.financial_month_start_day));});
+  },[user,supabase]);
 
   useEffect(() => {
     supabase.auth.getSession().then(({data}) => { setUser(data.session?.user ?? null); setAuthReady(true); });
@@ -275,9 +282,26 @@ export default function Home() {
     finally {setBusy(false);}
   }
 
-  const income=useMemo(()=>tx.filter(t=>t.kind==="income").reduce((s,t)=>s+t.amount,0),[tx]);
-  const expense=useMemo(()=>tx.filter(t=>t.kind==="expense").reduce((s,t)=>s+t.amount,0),[tx]);
-  const filtered=tx.filter(t=>(t.title+" "+t.category).includes(search));
+  function getFinancialPeriod(offset:number){
+    const now=new Date();
+    const base=new Date(now.getFullYear(),now.getMonth(),12);
+    if(now.getDate()<monthStartDay)base.setMonth(base.getMonth()-1);
+    base.setDate(Math.min(monthStartDay,new Date(base.getFullYear(),base.getMonth()+1,0).getDate()));
+    base.setMonth(base.getMonth()+offset);
+    const end=new Date(base);end.setMonth(end.getMonth()+1);end.setDate(end.getDate()-1);
+    return {start:base.toISOString().slice(0,10),end:end.toISOString().slice(0,10),label:base.toLocaleDateString("ar-SA",{month:"long",year:"numeric"})};
+  }
+  const financialPeriod=getFinancialPeriod(monthOffset);
+  const periodTx=useMemo(()=>tx.filter(t=>t.date>=financialPeriod.start&&t.date<=financialPeriod.end),[tx,financialPeriod.start,financialPeriod.end]);
+  const income=useMemo(()=>periodTx.filter(t=>t.kind==="income").reduce((sum,t)=>sum+t.amount,0),[periodTx]);
+  const expense=useMemo(()=>periodTx.filter(t=>t.kind==="expense").reduce((sum,t)=>sum+t.amount,0),[periodTx]);
+  const filtered=periodTx.filter(t=>(t.title+" "+t.category).includes(search));
+  async function saveMonthStart(e:React.FormEvent){
+    e.preventDefault();if(!user)return;setBusy(true);setNotice("");
+    try{const {error}=await supabase.from("profiles").upsert({id:user.id,financial_month_start_day:monthStartDay},{onConflict:"id"});if(error)throw error;setMonthOffset(0);setNotice("تم حفظ بداية الشهر المالي.");}
+    catch(e:unknown){setNotice(errorMessage(e,"تعذر حفظ الإعدادات."));}finally{setBusy(false);}
+  }
+  function monthNavigator(){return <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:12,flexWrap:"wrap",marginBottom:16,padding:"12px 14px",border:"1px solid var(--line)",borderRadius:12}}><button className="outline" onClick={()=>setMonthOffset(v=>v-1)}><ChevronRight size={16}/> الشهر السابق</button><div style={{textAlign:"center"}}><b>{financialPeriod.label}</b><small style={{display:"block",color:"var(--muted)"}}>{financialPeriod.start} — {financialPeriod.end}</small></div><button className="outline" disabled={monthOffset>=0} onClick={()=>setMonthOffset(v=>Math.min(0,v+1))}>الشهر التالي <ChevronLeft size={16}/></button></div>}
 
   if(!authReady) return <main className="shell" style={{minHeight:"100vh",display:"grid",placeItems:"center",padding:24}}>جارٍ الاتصال...</main>;
   if(!user) return <main className="shell" style={{minHeight:"100vh",display:"grid",placeItems:"center",padding:24,direction:"rtl"}}><section className="panel" style={{width:"100%",maxWidth:440,padding:28}}><div className="brand" style={{marginBottom:24}}><div className="brandIcon"><Wallet/></div><div><b>ميزانيتي</b><small>إدارة أموالك بوضوح</small></div></div><h1 style={{fontSize:24,marginBottom:8}}>{authMode==="signin"?"تسجيل الدخول":"إنشاء حساب جديد"}</h1><p style={{marginBottom:20,color:"var(--muted,#64748b)"}}>سجّل دخولك لحفظ عملياتك المالية بشكل آمن.</p><form onSubmit={submitAuth} style={{display:"grid",gap:14}}><label>البريد الإلكتروني<input required type="email" autoComplete="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="name@example.com" /></label><label>كلمة المرور<input required type="password" minLength={6} autoComplete={authMode==="signin"?"current-password":"new-password"} value={password} onChange={e=>setPassword(e.target.value)} placeholder="6 أحرف على الأقل" /></label><button className="primary full" disabled={busy} type="submit">{busy?"جارٍ التنفيذ...":authMode==="signin"?"دخول":"إنشاء الحساب"}</button></form>{authMessage&&<p role="status" style={{marginTop:16,overflowWrap:"anywhere"}}>{authMessage}</p>}<button className="outline" style={{width:"100%",marginTop:16}} onClick={()=>{setAuthMode(authMode==="signin"?"signup":"signin");setAuthMessage("");}}>{authMode==="signin"?"ليس لديك حساب؟ أنشئ حسابًا":"لديك حساب؟ سجّل الدخول"}</button></section></main>;
@@ -285,10 +309,11 @@ export default function Home() {
   return <main className="shell"><aside className={menu?"sidebar open":"sidebar"}><div className="brand"><div className="brandIcon"><Wallet/></div><div><b>ميزانيتي</b><small>إدارة أموالك بوضوح</small></div><button className="close mobile" onClick={()=>setMenu(false)}><X/></button></div><p className="muted navTitle">القائمة الرئيسية</p><nav>{nav.map(([label,Icon])=><button key={label} onClick={()=>{setActive(label);setMenu(false)}} className={active===label?"nav active":"nav"}><Icon size={19}/>{label}{label==="استيراد كشف الحساب"&&<span className="csv">CSV</span>}</button>)}</nav><div className="sideBottom"><div className="privacy"><ShieldCheck/><div><b>بياناتك خاصة</b><small>محفوظة في حسابك</small></div></div><p style={{overflowWrap:"anywhere"}}>{user.email}<small>الريال السعودي · SAR</small></p><button className="outline" onClick={()=>void supabase.auth.signOut()}><LogOut size={16}/> تسجيل الخروج</button></div></aside><section className="main"><header className="top"><button className="menuBtn mobile" onClick={()=>setMenu(true)}><Menu/></button><div><h1>{active}</h1><p>تابع وضعك المالي واتخذ قرارات أوضح.</p></div>{(active==="نظرة عامة" || active==="العمليات المالية") && <button className="primary" onClick={()=>setModal(true)}><Plus size={18}/> إضافة عملية</button>}</header>{notice&&<p role="status" style={{padding:12,margin:"8px 0 18px",borderRadius:10,background:"#eef6ff",overflowWrap:"anywhere"}}>{notice}</p>}
       {active==="نظرة عامة" && <>
         <div className="welcome"><div><span className="eyebrow">ملخصك المالي</span><h2>أهلًا بك في ميزانيتي 👋</h2><p>ملخص العمليات المحفوظة في حسابك.</p></div><div className="month">{new Date().toLocaleDateString("ar-SA",{month:"long",year:"numeric"})}</div></div>
-        <div className="cards"><article className="stat"><span>إجمالي الدخل</span><div className="statIcon green"><TrendingUp/></div><strong>{formatSAR(income)}</strong><small>من عملياتك المسجلة</small></article><article className="stat"><span>إجمالي المصروفات</span><div className="statIcon red"><TrendingDown/></div><strong>{formatSAR(expense)}</strong><small>من عملياتك المسجلة</small></article><article className="stat"><span>الصافي</span><div className="statIcon blue"><Wallet/></div><strong>{formatSAR(income-expense)}</strong><small>الدخل ناقص المصروفات</small></article></div>
+        {monthNavigator()}<div className="cards"><article className="stat"><span>إجمالي الدخل</span><div className="statIcon green"><TrendingUp/></div><strong>{formatSAR(income)}</strong><small>من عملياتك المسجلة</small></article><article className="stat"><span>إجمالي المصروفات</span><div className="statIcon red"><TrendingDown/></div><strong>{formatSAR(expense)}</strong><small>من عملياتك المسجلة</small></article><article className="stat"><span>الصافي</span><div className="statIcon blue"><Wallet/></div><strong>{formatSAR(income-expense)}</strong><small>الدخل ناقص المصروفات</small></article></div>
         <div className="contentGrid"><section className="panel"><div className="panelHead"><div><h3>آخر العمليات</h3><p>{busy?"جارٍ تحديث البيانات...":"العمليات المحفوظة"}</p></div><label className="search"><Search size={17}/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="ابحث عن عملية"/></label></div><div className="tableWrap"><table><thead><tr><th>العملية</th><th>التصنيف</th><th>التاريخ</th><th>المبلغ</th></tr></thead><tbody>{filtered.slice(0,8).map(t=><tr key={t.id}><td><b>{t.title}</b></td><td><span className="tag">{t.category}</span></td><td>{t.date}</td><td className={t.kind==="income"?"moneyIn":"moneyOut"}>{t.kind==="income"?"+":"−"}{formatSAR(t.amount)}</td></tr>)}</tbody></table>{filtered.length===0&&<p className="empty">{busy?"جارٍ تحميل العمليات...":"لا توجد عمليات محفوظة بعد."}</p>}</div></section><aside className="panel sidePanel"><h3>نظرة سريعة</h3><p>المصروفات مقارنة بالدخل</p><div className="bar"><span style={{width:(income?Math.min(100,expense/income*100):0)+"%"}}/></div><div className="barLegend"><span>نسبة المصروفات</span><b>{income?Math.round(expense/income*100):0}%</b></div><div className="note"><ShieldCheck size={20}/><div><b>خصوصيتك مهمة</b><p>كل مستخدم يصل إلى عملياته فقط عبر سياسات قاعدة البيانات.</p></div></div><button className="outline" onClick={()=>setModal(true)}><Plus size={17}/> تسجيل عملية جديدة</button></aside></div>
       </>}
-      {active==="العمليات المالية" && <section className="panel"><div className="panelHead"><div><h3>كل العمليات المالية</h3><p>{filtered.length} عملية مسجلة</p></div><label className="search"><Search size={17}/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="ابحث بالاسم أو التصنيف"/></label></div><div className="tableWrap"><table><thead><tr><th>العملية</th><th>النوع</th><th>التصنيف</th><th>التاريخ</th><th>المبلغ</th></tr></thead><tbody>{filtered.map(t=><tr key={t.id}><td><b>{t.title}</b></td><td>{t.kind==="income"?"دخل":"مصروف"}</td><td><span className="tag">{t.category}</span></td><td>{t.date}</td><td className={t.kind==="income"?"moneyIn":"moneyOut"}>{t.kind==="income"?"+":"−"}{formatSAR(t.amount)}</td></tr>)}</tbody></table>{!filtered.length&&<p className="empty">لا توجد عمليات مطابقة للبحث.</p>}</div><button className="primary" style={{marginTop:16}} onClick={()=>setModal(true)}><Plus size={17}/> إضافة عملية</button></section>}
+      {active==="العمليات المالية" && <>{monthNavigator()}<section className="panel"><div className="panelHead"><div><h3>كل العمليات المالية</h3><p>{filtered.length} عملية مسجلة</p></div><label className="search"><Search size={17}/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="ابحث بالاسم أو التصنيف"/></label></div><div className="tableWrap"><table><thead><tr><th>العملية</th><th>النوع</th><th>التصنيف</th><th>التاريخ</th><th>المبلغ</th></tr></thead><tbody>{filtered.map(t=><tr key={t.id}><td><b>{t.title}</b></td><td>{t.kind==="income"?"دخل":"مصروف"}</td><td><span className="tag">{t.category}</span></td><td>{t.date}</td><td className={t.kind==="income"?"moneyIn":"moneyOut"}>{t.kind==="income"?"+":"−"}{formatSAR(t.amount)}</td></tr>)}</tbody></table>{!filtered.length&&<p className="empty">لا توجد عمليات مطابقة للبحث.</p>}</div><button className="primary" style={{marginTop:16}} onClick={()=>setModal(true)}><Plus size={17}/> إضافة عملية</button></section></>}
+      {active==="الإعدادات" && <section className="panel"><div className="panelHead"><div><h3>إعدادات الفترة المالية</h3><p>حدد اليوم الذي تبدأ عنده دورتك المالية بدل بداية الشهر الميلادي.</p></div></div><form onSubmit={saveMonthStart} style={{display:"grid",gap:14,maxWidth:520}}><label style={{display:"grid",gap:8}}>بداية الشهر المالي<select value={monthStartDay} onChange={e=>setMonthStartDay(Number(e.target.value))}>{Array.from({length:28},(_,i)=>i+1).map(day=><option key={day} value={day}>يوم {day} من كل شهر</option>)}</select></label><p style={{margin:0,color:"var(--muted)",lineHeight:1.8}}>مثال: إذا اخترت يوم 27، تبدأ الفترة يوم 27 وتنتهي يوم 26 من الشهر التالي. حد الاختيار 28 لضمان وجود اليوم في كل شهر.</p><button className="primary" type="submit" disabled={busy}>{busy?"جارٍ الحفظ...":"حفظ الإعدادات"}</button></form></section>}
       {active==="الميزانيات" && <section className="panel">
         <div className="panelHead"><div><h3>الميزانيات</h3><p>حدد حدًا لكل تصنيف وتابع الصرف من عملياتك المسجلة</p></div><button className="primary" onClick={()=>setBudgetForm(v=>!v)}><Plus size={17}/>{budgetForm?"إلغاء":"إضافة ميزانية"}</button></div>
         {budgetForm&&<form onSubmit={saveBudget} style={{display:"grid",gap:14,padding:16,background:"#f7fafc",borderRadius:12,marginBottom:18}}>
