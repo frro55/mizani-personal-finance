@@ -16,8 +16,8 @@ function errorMessage(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback;
 }
 const nav = [["نظرة عامة",LayoutDashboard],["العمليات المالية",ReceiptText],["الميزانيات",Target],["الديون والأقساط",CreditCard],["التقارير والتحليلات",ChartNoAxesCombined],["استيراد كشف الحساب",FileUp],["الإعدادات",Settings]] as const;
-const expenseCategories = ["السكن","الأكل والمطاعم","المواصلات والسيارة","الفواتير والاتصالات","الصحة والعناية","التسوق","الترفيه","الأقساط والديون","الاشتراكات","التعليم","السفر","متفرقات"] as const;
-const incomeCategories = ["الراتب","عمل إضافي","دخل استثماري","مكافآت","استرداد مبالغ","دخل آخر"] as const;
+const expenseCategories = ["السكن","الأكل والمطاعم","السيارة والمواصلات","الفواتير","التسوق","الصحة","الالتزامات","متفرقات"] as const;
+const incomeCategories = ["الراتب","دخل إضافي","مكافآت","دخل آخر"] as const;
 function normalizeCategory(value:string|null|undefined) {
   const aliases:Record<string,string> = {
     "طعام ومقاهي":"الأكل والمطاعم","طعام":"الأكل والمطاعم","مطاعم":"الأكل والمطاعم","مطاعم ومقاهي":"الأكل والمطاعم","الأكل":"الأكل والمطاعم",
@@ -28,7 +28,7 @@ function normalizeCategory(value:string|null|undefined) {
     "راتب":"الراتب","متفرقات":"متفرقات"
   };
   const v=(value||"").trim();
-  return aliases[v] || (expenseCategories as readonly string[]).includes(v) || (incomeCategories as readonly string[]).includes(v) ? (aliases[v] || v) : "متفرقات";
+  return aliases[v] || v || "متفرقات";
 }
 
 export default function Home() {
