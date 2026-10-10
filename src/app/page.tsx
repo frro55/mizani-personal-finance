@@ -350,10 +350,10 @@ export default function Home() {
   const financialPeriod=getFinancialPeriod(monthOffset);
   function monthPicker(){
     return <div style={{position:"relative",display:"flex",justifyContent:"flex-start",marginBottom:16}}>
-      <button type="button" className="month" onClick={()=>setMonthPickerOpen(v=>!v)} aria-expanded={monthPickerOpen} style={{cursor:"pointer",border:monthPickerOpen?"2px solid #3b8b70":undefined,background:"#e6f4ee",color:"#28785f",fontWeight:700}}>{financialPeriod.label} ▾</button>
-      {monthPickerOpen&&<div style={{position:"absolute",zIndex:20,top:"calc(100% + 8px)",right:0,width:290,maxWidth:"85vw",padding:14,background:"white",border:"1px solid var(--line)",borderRadius:16,boxShadow:"0 12px 32px rgba(15,23,42,.14)"}}>
-        <div style={{fontWeight:700,marginBottom:10}}>اختر الشهر المالي</div>
-        <div style={{display:"grid",gridTemplateColumns:"repeat(3,minmax(0,1fr))",gap:7}}>{Array.from({length:37},(_,i)=>i-24).map(offset=>{const period=getFinancialPeriod(offset);const current=offset===0;const selected=offset===monthOffset;return <button type="button" key={offset} onClick={()=>{setMonthOffset(offset);setMonthPickerOpen(false)}} style={{padding:"10px 4px",borderRadius:9,border:current?"2px solid #2f8067":selected?"2px solid #9acbb9":"1px solid #e2e8f0",background:current?"#d8f0e6":selected?"#edf7f2":"white",color:current?"#17664e":"#273449",fontWeight:current||selected?700:500}}>{period.label}</button>})}</div>
+      <button type="button" className="month" onClick={()=>setMonthPickerOpen(v=>!v)} aria-expanded={monthPickerOpen} style={{cursor:"pointer",border:monthPickerOpen?"2px solid #3b8b70":undefined,background:"var(--card)",color:"var(--ink)",fontWeight:700}}>{financialPeriod.label} ▾</button>
+      {monthPickerOpen&&<div style={{position:"absolute",zIndex:20,top:"calc(100% + 8px)",right:0,width:270,maxWidth:"90vw",padding:12,background:"var(--card)",color:"var(--ink)",border:"1px solid var(--line)",borderRadius:14,boxShadow:"0 12px 32px rgba(15,23,42,.14)"}}>
+        <div style={{display:"flex",alignItems:"center",justifyContent:"space-between",gap:8,marginBottom:10}}><b>اختر الشهر</b><button type="button" className="outline" onClick={()=>setMonthPickerOpen(false)} aria-label="إغلاق اختيار الشهر"><X size={15}/></button></div>
+        <div style={{display:"grid",gridTemplateColumns:"repeat(3,minmax(0,1fr))",gap:7}}>{Array.from({length:13},(_,i)=>i-6).map(offset=>{const period=getFinancialPeriod(offset);const current=offset===0;const selected=offset===monthOffset;return <button type="button" key={offset} onClick={()=>{setMonthOffset(offset);setMonthPickerOpen(false)}} style={{padding:"9px 4px",borderRadius:9,border:selected?"2px solid #2f8067":"1px solid var(--line)",background:selected?"#d8f0e6":"var(--card)",color:"var(--ink)",fontWeight:selected?700:500}}>{period.label}</button>})}</div>
       </div>}
     </div>;
   }
