@@ -147,7 +147,7 @@ export default function Home() {
         if(error) throw error;
         categoryId = newCat.id;
       }
-      const {error} = await supabase.from("transactions").insert({user_id:user.id,account_id:accountId,category_id:categoryId,type:kind,amount_minor:Math.round(n*100),description:notes.trim()||null,occurred_at:new Date().toISOString()});
+      const {error} = await supabase.from("transactions").insert({user_id:user.id,account_id:accountId,category_id:categoryId,type:kind,amount_minor:Math.round(n*100),description:notes.trim(),occurred_at:new Date().toISOString()});
       if(error) throw error;
       await loadTransactions(user.id);
       setNotes("");setAmount("");setCategory(kind==="income"?"الراتب":"متفرقات");setModal(false);setNotice("تم حفظ العملية في قاعدة البيانات.");
