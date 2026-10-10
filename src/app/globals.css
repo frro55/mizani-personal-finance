@@ -74,3 +74,9 @@
 :root[data-theme="dark"] .panel input::placeholder,:root[data-theme="dark"] .modal input::placeholder{color:#aab4c4}
 :root[data-theme="dark"] .primary{color:#06271e}
 :root[data-theme="dark"] .month{background:var(--card)!important;color:var(--ink)!important}
+
+/* Accessible status banners in both themes */
+.statusNotice{padding:12px 14px;margin:8px 0 18px;border-radius:10px;overflow-wrap:anywhere;background:#e8f2ff;color:#173b66;border:1px solid #c9defa}
+:root[data-theme="dark"] .statusNotice{background:#26364b;color:#e4efff;border-color:#415574}
+:root[data-theme="dark"] .month{background:var(--card)!important;color:var(--ink)!important;border-color:var(--line)!important}
+:root[data-theme="dark"] .panel .empty{color:var(--muted)}
