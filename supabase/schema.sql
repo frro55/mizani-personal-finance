@@ -38,7 +38,8 @@ alter table public.debts
   add column if not exists debt_type text not null default 'fixed',
   add column if not exists provider text not null default '',
   add column if not exists monthly_due_day integer,
-  add column if not exists total_installments integer;
+  add column if not exists total_installments integer,
+  add column if not exists start_date date;
 alter table public.debts
   drop constraint if exists debts_debt_type_check;
 alter table public.debts
@@ -53,7 +54,8 @@ create table if not exists public.debt_installments (
   amount_minor bigint not null check (amount_minor > 0),
   paid_at timestamptz,
   payment_note text not null default '',
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  unique (debt_id, installment_number)
 );
 create index if not exists debt_installments_user_due_idx on public.debt_installments(user_id, due_date);
 create index if not exists debt_installments_debt_due_idx on public.debt_installments(debt_id, due_date);
