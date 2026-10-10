@@ -25,7 +25,7 @@ export async function POST(request: Request) {
       const content = await page.getTextContent();
       pageTexts.push(content.items.map(item => "str" in item ? item.str : "").join(" "));
     }
-    const text = pageTexts.join("\\n").replace(/\u00a0/g, " ");
+    const text = pageTexts.join("\n").replace(/\u00a0/g, " ");
     const dateRegex = /\b(20\d{2})\/(\d{2})\/(\d{2})\b/g;
     const dates = [...text.matchAll(dateRegex)];
     const rows: { date: string; description: string; amount: number; type: "income" | "expense" }[] = [];
