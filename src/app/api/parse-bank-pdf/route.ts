@@ -25,7 +25,8 @@ export async function POST(request: Request) {
     const rows: { date: string; description: string; amount: number; type: "income" | "expense" }[] = [];
     for (let i = 0; i < dates.length; i++) {
       const match = dates[i];
-      const previous = i > 0 ? dates[i - 1] : null;\n      const start = previous ? (previous.index ?? 0) + previous[0].length : Math.max(0, (match.index ?? 0) - 800);
+      const previous = i > 0 ? dates[i - 1] : null;
+      const start = previous ? (previous.index ?? 0) + previous[0].length : Math.max(0, (match.index ?? 0) - 800);
       const end = (match.index ?? 0) + match[0].length;
       const chunk = text.slice(start, end);
       const amounts = [...chunk.matchAll(/(\d{1,3}(?:,\d{3})*|\d+)\.\d{2}\s*(?:SAR)?/g)]
