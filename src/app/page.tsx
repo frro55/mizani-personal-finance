@@ -18,6 +18,7 @@ function errorMessage(error: unknown, fallback: string) {
 const nav = [["نظرة عامة",LayoutDashboard],["العمليات المالية",ReceiptText],["الميزانيات",Target],["الديون والأقساط",CreditCard],["التقارير والتحليلات",ChartNoAxesCombined],["استيراد كشف الحساب",FileUp],["الإعدادات",Settings]] as const;
 const expenseCategories = ["السكن","الأكل والمطاعم","السيارة والمواصلات","الفواتير","التسوق","الصحة","الالتزامات","متفرقات"] as const;
 const incomeCategories = ["الراتب","دخل إضافي","مكافآت","دخل آخر"] as const;
+const expenseHierarchy:Record<string,string[]> = {"السكن":["الإيجار","الكهرباء والمياه"],"الأكل والمطاعم":["مطاعم","مقاضي البيت","القهوة"],"السيارة والمواصلات":["البنزين","الصيانة والزيت","غسيل السيارة"],"الفواتير":["الجوال والإنترنت","فواتير أخرى"],"التسوق":["ملابس","مشتريات شخصية"],"الصحة":["أدوية","مواعيد وعلاج"],"الالتزامات":["أقساط","رسوم أخرى"],"متفرقات":["مصروف آخر"]};
 function normalizeCategory(value:string|null|undefined) {
   const aliases:Record<string,string> = {
     "طعام ومقاهي":"الأكل والمطاعم","طعام":"الأكل والمطاعم","مطاعم":"الأكل والمطاعم","مطاعم ومقاهي":"الأكل والمطاعم","الأكل":"الأكل والمطاعم",
@@ -47,7 +48,12 @@ export default function Home() {
   const [kind,setKind] = useState<"income"|"expense">("expense");
   const [notes,setNotes] = useState("");
   const [amount,setAmount] = useState("");
-  const [category,setCategory] = useState("متفرقات");
+  const [category,setCategory] = useState("مصروف آخر");
+  const [mainCategory,setMainCategory] = useState("متفرقات");
+  const [personalCategories,setPersonalCategories] = useState<{id:string;name:string;applies_to:string;parent_id:string|null}[]>([]);
+  const [newCategoryName,setNewCategoryName] = useState("");
+  const [newCategoryKind,setNewCategoryKind] = useState<"expense"|"income">("expense");
+  const [newCategoryParent,setNewCategoryParent] = useState("");
   const [personalCategories,setPersonalCategories] = useState<{id:string;name:string;applies_to:string}[]>([]);
   const [newCategoryName,setNewCategoryName] = useState("");
   const [newCategoryKind,setNewCategoryKind] = useState<"expense"|"income">("expense");
@@ -88,6 +94,7 @@ export default function Home() {
   useEffect(() => {
     if(!user)return;
     void supabase.from("categories").select("id,name,applies_to").eq("user_id",user.id).is("parent_id",null).order("name").then(({data,error})=>{if(!error)setPersonalCategories((data??[]) as {id:string;name:string;applies_to:string}[]);});
+    void supabase.from("categories").select("id,name,applies_to,parent_id").eq("user_id",user.id).order("name").then(({data,error})=>{if(!error)setPersonalCategories((data??[]) as {id:string;name:string;applies_to:string;parent_id:string|null}[]);});
     void supabase.from("profiles").select("financial_month_start_day").eq("id",user.id).maybeSingle().then(({data})=>{if(data?.financial_month_start_day)setMonthStartDay(Number(data.financial_month_start_day));});
   },[user,supabase]);
 
@@ -143,18 +150,15 @@ export default function Home() {
     if(!category.trim()||!Number.isFinite(n)||n<=0)return;
     setBusy(true);setNotice("");
     try {
-      const {data:cat,error:catError} = await supabase.from("categories").select("id").eq("user_id",user.id).eq("name",category).limit(1);
-      if(catError) throw catError;
-      let categoryId = cat?.[0]?.id as string|undefined;
-      if(!categoryId) {
-        const {data:newCat,error} = await supabase.from("categories").insert({user_id:user.id,name:category,applies_to:"both"}).select("id").single();
-        if(error) throw error;
-        categoryId = newCat.id;
-      }
+      let parentId:string|undefined;
+      if(kind==="expense"){parentId=personalCategories.find(c=>c.name===mainCategory&&!c.parent_id)?.id;if(!parentId){const {data:p,error:pe}=await supabase.from("categories").insert({user_id:user.id,name:mainCategory,applies_to:"expense",parent_id:null}).select("id").single();if(pe)throw pe;parentId=p.id;}}
+      const {data:cat,error:catError}=await supabase.from("categories").select("id").eq("user_id",user.id).eq("name",category).eq("parent_id",parentId??null).limit(1);
+      if(catError)throw catError;let categoryId=cat?.[0]?.id as string|undefined;
+      if(!categoryId){const {data:nc,error}=await supabase.from("categories").insert({user_id:user.id,name:category,applies_to:kind,parent_id:parentId??null}).select("id").single();if(error)throw error;categoryId=nc.id;}
       const {error} = await supabase.from("transactions").insert({user_id:user.id,account_id:accountId,category_id:categoryId,type:kind,amount_minor:Math.round(n*100),description:notes.trim(),occurred_at:new Date().toISOString()});
       if(error) throw error;
       await loadTransactions(user.id);
-      setNotes("");setAmount("");setCategory(kind==="income"?"الراتب":"متفرقات");setModal(false);setNotice("تم حفظ العملية في قاعدة البيانات.");
+      setNotes("");setAmount("");setCategory(kind==="income"?"الراتب":"مصروف آخر");setMainCategory("متفرقات");setModal(false);setNotice("تم حفظ العملية في قاعدة البيانات.");
     } catch(e:unknown) {setNotice(errorMessage(e, "تعذر حفظ العملية."));}
     finally {setBusy(false);}
   }
@@ -480,5 +484,5 @@ export default function Home() {
       <div className="tableWrap" style={{marginTop:14}}><table><thead><tr><th>الدفعة</th><th>تاريخ الاستحقاق</th><th>المبلغ</th><th>الحالة</th><th>الإجراء</th></tr></thead><tbody>{items.map(item=>{const status=installmentStatus(item);return <tr key={item.id}><td>{item.installment_number}</td><td>{new Date(item.due_date+"T12:00:00").toLocaleDateString("en-GB-u-ca-gregory-nu-latn",{year:"numeric",month:"short",day:"numeric"})}</td><td>{formatSAR(Number(item.amount_minor)/100)}</td><td><span className={status.className}>{status.label}</span></td><td>{item.paid_at?<span>تم السداد {new Date(item.paid_at).toLocaleDateString("en-GB-u-ca-gregory-nu-latn")}</span>:<button className="outline" disabled={busy} onClick={()=>void markInstallmentPaid(item)}>تسجيل السداد</button>}</td></tr>})}</tbody></table></div></article>})}</div>}
     </section></>}{active==="التقارير والتحليلات" && <>{monthPicker()}<div className="cards"><article className="stat"><span>إجمالي الدخل</span><div className="statIcon green"><TrendingUp/></div><strong>{formatSAR(income)}</strong><small>{periodTx.filter(t=>t.kind==="income").length} عملية دخل في هذه الفترة</small></article><article className="stat"><span>إجمالي المصروفات</span><div className="statIcon red"><TrendingDown/></div><strong>{formatSAR(expense)}</strong><small>{periodTx.filter(t=>t.kind==="expense").length} عملية مصروف في هذه الفترة</small></article><article className="stat"><span>صافي التدفق</span><div className="statIcon blue"><Wallet/></div><strong>{formatSAR(income-expense)}</strong><small>حسب الفترة المالية المحددة</small></article><section className="panel" style={{gridColumn:"1 / -1"}}><h3>ملخص حسب التصنيف</h3><div className="tableWrap"><table><thead><tr><th>التصنيف</th><th>عدد العمليات</th><th>الدخل</th><th>المصروفات</th><th>الصافي</th></tr></thead><tbody>{Array.from(new Set(periodTx.map(t=>t.category))).map(cat=>{const rows=periodTx.filter(t=>t.category===cat);const inc=rows.filter(t=>t.kind==="income").reduce((s,t)=>s+t.amount,0);const exp=rows.filter(t=>t.kind==="expense").reduce((s,t)=>s+t.amount,0);return <tr key={cat}><td>{cat}</td><td>{rows.length}</td><td className="moneyIn">{formatSAR(inc)}</td><td className="moneyOut">{formatSAR(exp)}</td><td>{formatSAR(inc-exp)}</td></tr>})}</tbody></table>{periodTx.length===0&&<p className="empty">لا توجد عمليات في هذه الفترة المالية.</p>}</div></section></div></>}
       {active==="استيراد كشف الحساب" && <section className="panel"><h3>استيراد كشف حساب بنكي PDF</h3><p style={{color:"var(--muted)",margin:"8px 0 18px",lineHeight:1.9}}>ارفع كشف الحساب بصيغة PDF مباشرة. سنستخرج العمليات تلقائيًا، وتقدر تراجع المعاينة قبل حفظها في حسابك.</p><label style={{display:"grid",gap:10,maxWidth:520}}>اختيار كشف الحساب PDF<input type="file" accept=".pdf,application/pdf" onChange={e=>{const file=e.target.files?.[0];if(file)void readBankPdf(file);}}/></label>{csvName&&<p style={{marginTop:12}}>الملف: {csvName}</p>}{csvRows.length>0&&<><h3 style={{marginTop:22}}>معاينة قبل الحفظ ({csvRows.length} عملية)</h3><div className="tableWrap"><table><thead><tr><th>التاريخ</th><th>الوصف</th><th>النوع</th><th>المبلغ</th></tr></thead><tbody>{csvRows.slice(0,10).map((row,i)=><tr key={i}><td>{row.date}</td><td>{row.description}</td><td>{row.type==="income"?"دخل":"مصروف"}</td><td>{formatSAR(row.amount)}</td></tr>)}</tbody></table></div><button className="primary" style={{marginTop:16}} disabled={busy} onClick={()=>void importCsv()}>{busy?"جارٍ الاستيراد...":`حفظ ${csvRows.length} عملية في حسابك`}</button></>}</section>}
-      <footer>ميزانيتي © ٢٠٢٦ <span>حفظ سحابي عبر Supabase</span></footer></section>{modal&&<div className="overlay" onClick={()=>setModal(false)}><section className="modal" onClick={e=>e.stopPropagation()}><div className="modalHead"><div><h2>{kind==="income"?"إضافة دخل":"إضافة مصروف"}</h2><p>{kind==="income"?"سجّل مصدر دخلك":"سجّل مصروفك"}</p></div><button className="close" onClick={()=>setModal(false)}><X/></button></div><form onSubmit={add}><label>التصنيف<select value={category} onChange={e=>setCategory(e.target.value)}>{Array.from(new Set([...(kind==="income"?incomeCategories:expenseCategories),...personalCategories.filter(c=>c.applies_to==="both"||c.applies_to===kind).map(c=>c.name)])).map(c=><option key={c} value={c}>{c}</option>)}</select></label><label>المبلغ بالريال<input required type="number" min="0.01" step="0.01" value={amount} onChange={e=>setAmount(e.target.value)} placeholder="0.00"/></label><label>ملاحظات (اختياري)<textarea value={notes} onChange={e=>setNotes(e.target.value)} placeholder="مثال: فاتورة الكهرباء لشهر أكتوبر" rows={2}/></label><button className="primary full" disabled={busy} type="submit">{busy?"جارٍ الحفظ...":"حفظ العملية"}</button></form></section></div>}</main>;
+      <footer>ميزانيتي © ٢٠٢٦ <span>حفظ سحابي عبر Supabase</span></footer></section>{modal&&<div className="overlay" onClick={()=>setModal(false)}><section className="modal" onClick={e=>e.stopPropagation()}><div className="modalHead"><div><h2>{kind==="income"?"إضافة دخل":"إضافة مصروف"}</h2><p>{kind==="income"?"سجّل مصدر دخلك":"سجّل مصروفك"}</p></div><button className="close" onClick={()=>setModal(false)}><X/></button></div><form onSubmit={add}>{kind==="expense"?<><label>التصنيف الرئيسي<select value={mainCategory} onChange={e=>{setMainCategory(e.target.value);setCategory(expenseHierarchy[e.target.value]?.[0]||"مصروف آخر");}}>{Array.from(new Set([...expenseCategories,...personalCategories.filter(c=>c.applies_to==="expense"&&!c.parent_id).map(c=>c.name)])).map(c=><option key={c} value={c}>{c}</option>)}</select></label><label>التصنيف الفرعي<select value={category} onChange={e=>setCategory(e.target.value)}>{Array.from(new Set([...(expenseHierarchy[mainCategory]||["مصروف آخر"]),...personalCategories.filter(c=>c.applies_to==="expense"&&c.parent_id===personalCategories.find(p=>p.name===mainCategory&&!p.parent_id)?.id).map(c=>c.name)])).map(c=><option key={c} value={c}>{c}</option>)}</select></label></>:<label>التصنيف<select value={category} onChange={e=>setCategory(e.target.value)}>{Array.from(new Set([...incomeCategories,...personalCategories.filter(c=>c.applies_to==="income").map(c=>c.name)])).map(c=><option key={c} value={c}>{c}</option>)}</select></label>}<label>المبلغ بالريال<input required type="number" min="0.01" step="0.01" value={amount} onChange={e=>setAmount(e.target.value)} placeholder="0.00"/></label><label>ملاحظات (اختياري)<textarea value={notes} onChange={e=>setNotes(e.target.value)} placeholder="مثال: فاتورة الكهرباء لشهر أكتوبر" rows={2}/></label><button className="primary full" disabled={busy} type="submit">{busy?"جارٍ الحفظ...":"حفظ العملية"}</button></form></section></div>}</main>;
 }
