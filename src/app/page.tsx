@@ -340,6 +340,7 @@ export default function Home() {
       if(!debt)throw new Error("تعذر العثور على الالتزام المرتبط بالقسط.");
       const {data:initialLinkedTransactions,error:findError}=await supabase.from("transactions").select("id").eq("user_id",user.id).eq("installment_id",item.id).limit(2);
       if(findError)throw findError;
+      // Keep this mutable: a unique legacy match may be linked below.
       let linkedTransactions=initialLinkedTransactions;
       // Backward compatibility for payments created before installment_id existed.
       if(!linkedTransactions?.length){
