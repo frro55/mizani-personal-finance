@@ -229,7 +229,7 @@ export default function Home() {
   }
   function budgetSpent(b:typeof budgets[number]){
     const category=normalizeCategory(Array.isArray(b.categories)?b.categories[0]?.name:b.categories?.name);
-    const children=expenseHierarchy[category]||[];
+    const children=[...(expenseHierarchy[category]||[]),...personalCategories.filter(item=>item.parent_id===personalCategories.find(parent=>parent.name===category&&!parent.parent_id)?.id).map(item=>item.name)];
     return periodTx.filter(t=>t.kind==="expense"&&(t.category===category||children.includes(t.category))).reduce((sum,t)=>sum+Math.round(t.amount*100),0);
   }
 
@@ -457,7 +457,7 @@ export default function Home() {
         <div className="panelHead"><div><h3>الميزانيات</h3><p>متابعة الصرف في الفترة المالية المحددة</p></div><button className="primary" onClick={()=>setBudgetForm(v=>!v)}><Plus size={17}/>{budgetForm?"إلغاء":"إضافة ميزانية"}</button></div>
         {budgetForm&&<form onSubmit={saveBudget} style={{display:"grid",gap:14,padding:16,background:"var(--card)",borderRadius:12,marginBottom:18}}>
           <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:12}}>
-            <label style={{display:"grid",gap:6}}>التصنيف<select required value={budgetCategory} onChange={e=>setBudgetCategory(e.target.value)}>{expenseCategories.map(c=><option key={c} value={"@parent:"+c}>{c} — الكل</option>)}{Object.entries(expenseHierarchy).flatMap(([p,children])=>children.map(ch=><option key={p+"-"+ch} value={ch}>{p} — {ch}</option>))}{personalCategories.filter(c=>c.applies_to==="expense"||c.applies_to==="both").map(c=><option key={c.id} value={c.name}>{c.parent_id?(personalCategories.find(p=>p.id===c.parent_id)?.name+" — "):""}{c.name}</option>)}</select></label>
+            <label style={{display:"grid",gap:6}}>التصنيف<select required value={budgetCategory} onChange={e=>setBudgetCategory(e.target.value)}>{expenseCategories.map(c=><option key={c} value={"@parent:"+c}>{c} — الكل</option>)}{Object.entries(expenseHierarchy).flatMap(([p,children])=>children.map(ch=><option key={p+"-"+ch} value={ch}>{p} — {ch}</option>))}{personalCategories.filter(c=>c.applies_to==="expense"||c.applies_to==="both").map(c=><option key={c.id} value={!c.parent_id?"@parent:"+c.name:c.name}>{c.parent_id?(personalCategories.find(p=>p.id===c.parent_id)?.name+" — "):c.name+" — الكل"}</option>)}</select></label>
             <label style={{display:"grid",gap:6}}>اسم الميزانية<input required value={budgetName} onChange={e=>setBudgetName(e.target.value)} placeholder="ميزانية المطاعم"/></label>
             <label style={{display:"grid",gap:6}}>الحد المالي (ر.س)<input required type="number" min="0.01" step="0.01" value={budgetAmount} onChange={e=>setBudgetAmount(e.target.value)} placeholder="1000"/></label>
             <label style={{display:"grid",gap:6}}>الفترة<select value={budgetPeriod} onChange={e=>setBudgetPeriod(e.target.value as "weekly"|"monthly"|"yearly")}><option value="weekly">أسبوعية</option><option value="monthly">شهرية</option><option value="yearly">سنوية</option></select></label>
