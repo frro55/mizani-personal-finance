@@ -338,8 +338,9 @@ export default function Home() {
     try{
       const debt=debts.find(d=>d.id===item.debt_id);
       if(!debt)throw new Error("تعذر العثور على الالتزام المرتبط بالقسط.");
-      let {data:linkedTransactions,error:findError}=await supabase.from("transactions").select("id").eq("user_id",user.id).eq("installment_id",item.id).limit(2);
+      const {data:initialLinkedTransactions,error:findError}=await supabase.from("transactions").select("id").eq("user_id",user.id).eq("installment_id",item.id).limit(2);
       if(findError)throw findError;
+      let linkedTransactions=initialLinkedTransactions;
       // Backward compatibility for payments created before installment_id existed.
       if(!linkedTransactions?.length){
         const description=`سداد قسط ${debt.name}`;
