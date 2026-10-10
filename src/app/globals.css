@@ -125,3 +125,10 @@
 :root[data-theme="dark"] .homeIncomeAction{background:#173f32;color:#a5efc9;border-color:#285c48!important}
 :root[data-theme="dark"] .homeExpenseAction{background:#482a30;color:#ffaaa5;border-color:#633940!important}
 @media(max-width:480px){.homeStatsActions{gap:9px}.homeStatsActions button{min-height:60px;padding:11px 7px;font-size:14px}}
+
+
+/* Dashboard hierarchy: neutral welcome card, emphasis on available balance and actions */
+.welcome{background:var(--card);border-color:var(--line);}
+.welcome .eyebrow{color:var(--muted)}
+:root[data-theme="dark"] .welcome{background:var(--card);border-color:var(--line)}
+@media(max-width:720px){.welcome{position:relative;flex-wrap:wrap;align-items:flex-start}.welcome>div:last-child{max-width:100%}}
