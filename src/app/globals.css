@@ -80,3 +80,29 @@
 :root[data-theme="dark"] .statusNotice{background:#26364b;color:#e4efff;border-color:#415574}
 :root[data-theme="dark"] .month{background:var(--card)!important;color:var(--ink)!important;border-color:var(--line)!important}
 :root[data-theme="dark"] .panel .empty{color:var(--muted)}
+
+
+/* Balanced, simplified overview */
+.availableCard{display:flex;align-items:center;justify-content:space-between;gap:18px;padding:24px 26px;margin-bottom:16px;border:1px solid #cce8dc;border-radius:16px;background:linear-gradient(115deg,#e2f4eb,#f5fbf8)}
+.availableCard h2{font-size:clamp(27px,3vw,36px);margin:8px 0 5px;direction:rtl;text-align:right}
+.availableCard p{margin:0;color:#527568;font-size:12px;line-height:1.8}
+.availableIcon{width:54px;height:54px;border-radius:15px;background:#d0ecdf;color:#168568;display:grid;place-items:center;flex-shrink:0}
+.homeStats{grid-template-columns:repeat(2,minmax(0,1fr));margin-bottom:18px}
+.homeStats .stat{padding:17px 20px}
+.homeStats .stat strong{margin:8px 0 3px;font-size:22px}
+.homeObligations .panelHead{margin-bottom:10px}
+.homeObligationAmount{font-size:25px;display:block;margin:10px 0}
+.homeObligations>p{margin:0 0 15px;color:var(--muted);font-size:12px}
+.homeAllTransactions{margin-top:12px}
+:root[data-theme="dark"] .availableCard{background:linear-gradient(115deg,#173b35,#1b302e);border-color:#2b5149}
+:root[data-theme="dark"] .availableCard p{color:#bfd9d0}
+:root[data-theme="dark"] .availableIcon{background:#174438;color:#76e0bc}
+@media(max-width:720px){
+ .availableCard{padding:19px;gap:10px;margin-bottom:12px}
+ .availableCard h2{font-size:27px}
+ .availableIcon{width:44px;height:44px;border-radius:12px}
+ .homeStats{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
+ .homeStats .stat{padding:14px}
+ .homeStats .stat strong{font-size:18px;overflow-wrap:anywhere}
+ .homeStats .statIcon{left:12px;top:12px;width:30px;height:30px}
+}
