@@ -239,3 +239,20 @@
 .availableOnlyCard .availableMain{flex:1;min-width:0;border:0!important;background:transparent!important;padding:0!important}
 .availableOnlyCard .availableIcon{position:static;flex:none;background:rgba(54,182,139,.14);color:#6ee7b7;border-radius:16px;padding:18px}
 @media(max-width:420px){.availableCard .cashflowSummary{min-height:130px}.availableOnlyCard .availableIcon{padding:12px}.availableOnlyCard .availableMain h2{font-size:clamp(23px,6vw,32px)}}
+
+/* Final override: home financial summaries match the separate report cards */
+.availableCard{display:block!important;padding:0!important;margin:0 0 16px!important;border:0!important;border-radius:0!important;background:transparent!important;box-shadow:none!important}
+.availableCard .cashflowSummary,.availableOnlyCard .availableMain{box-sizing:border-box;width:100%;min-height:170px;padding:28px 24px!important;border:1px solid #40516a!important;border-top:5px solid #36b68b!important;border-radius:22px!important;background:linear-gradient(145deg,#203243,#1c3a38)!important;box-shadow:0 5px 18px rgba(0,0,0,.16)!important}
+.availableCard .cashflowSummary{border-top-color:#36b68b!important;background:linear-gradient(145deg,#203243,#1c3a38)!important}
+.availableOnlyCard .availableMain{border-top-color:#5b8def!important;background:linear-gradient(145deg,#243145,#26334d)!important}
+.availableCard .cashflowSummary .eyebrow{color:#8bdcc1!important}
+.availableOnlyCard .availableMain .eyebrow{color:#a9c6ff!important}
+.availableCard .cashflowSummary p,.availableOnlyCard .availableMain p{color:#b7c4d3!important}
+.availableCard .cashflowSummary h2,.availableOnlyCard .availableMain h2{font-size:clamp(25px,5.8vw,36px)!important;overflow-wrap:anywhere}
+.availableOnlyCard .availableIcon{display:none!important}
+:root[data-theme="light"] .availableCard .cashflowSummary{background:linear-gradient(145deg,#e4f7ef,#f4fbf8)!important;border-color:#b8dfcf!important;border-top-color:#36b68b!important;box-shadow:0 5px 18px rgba(16,30,50,.06)!important}
+:root[data-theme="light"] .availableOnlyCard .availableMain{background:linear-gradient(145deg,#edf3ff,#f8faff)!important;border-color:#c5d5f2!important;border-top-color:#5b8def!important;box-shadow:0 5px 18px rgba(16,30,50,.06)!important}
+:root[data-theme="light"] .availableCard .cashflowSummary .eyebrow{color:#137653!important}
+:root[data-theme="light"] .availableOnlyCard .availableMain .eyebrow{color:#315c9d!important}
+:root[data-theme="light"] .availableCard .cashflowSummary p,:root[data-theme="light"] .availableOnlyCard .availableMain p{color:#536579!important}
+@media(max-width:420px){.availableCard .cashflowSummary,.availableOnlyCard .availableMain{min-height:145px;padding:22px 18px!important}.availableCard .cashflowSummary h2,.availableOnlyCard .availableMain h2{font-size:clamp(23px,6vw,32px)!important}}
