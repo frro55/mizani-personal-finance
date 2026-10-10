@@ -213,3 +213,21 @@
 .debtStats .debtStatMonth strong{font-size:clamp(16px,3.5vw,24px)}
 .debtStats .stat{min-width:0;overflow:hidden}
 @media(max-width:420px){.debtStats .stat{padding:14px 12px!important}.debtStats .stat>span{font-size:11px}.debtStats .stat strong{font-size:clamp(15px,4vw,18px);letter-spacing:-.04em}.debtStats .debtStatMonth small{font-size:10px;line-height:1.6}}
+
+/* Dashboard: distinguish remaining income from available-to-spend */
+.availableCard{display:grid;grid-template-columns:minmax(0,1fr);gap:16px}
+.availableCard .cashflowSummary{padding:14px 16px;border-radius:16px;background:linear-gradient(135deg,#263651,#263043);border:1px solid #4b6485}
+.availableCard .cashflowSummary .eyebrow{color:#a9c6ff}
+.availableCard .cashflowSummary h2{margin:8px 0;font-size:clamp(24px,5vw,34px);direction:ltr;unicode-bidi:isolate;text-align:right;font-variant-numeric:tabular-nums}
+.availableCard .cashflowSummary p{margin:0;color:var(--muted);font-size:13px;line-height:1.7}
+.availableCard .availableDivider{height:1px;background:var(--line);margin:0 2px}
+.availableCard .availableMain{padding:16px;border-radius:16px;background:linear-gradient(135deg,#173f36,#1b3936);border:1px solid #286b59}
+.availableCard .availableMain .eyebrow{color:#68d9b1}
+.availableCard .availableMain h2{margin:8px 0;font-size:clamp(28px,6vw,40px);direction:ltr;unicode-bidi:isolate;text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+.availableCard .availableMain p{margin:0;color:#c0d8d0;font-size:13px;line-height:1.8}
+:root[data-theme="light"] .availableCard .cashflowSummary{background:linear-gradient(135deg,#edf3ff,#e7eefb);border-color:#b9ccef}
+:root[data-theme="light"] .availableCard .cashflowSummary .eyebrow{color:#315c9d}
+:root[data-theme="light"] .availableCard .availableMain{background:linear-gradient(135deg,#e4f7ef,#d6f1e5);border-color:#9cd7bd}
+:root[data-theme="light"] .availableCard .availableMain .eyebrow{color:#137653}
+:root[data-theme="light"] .availableCard .availableMain p{color:#315e50}
+@media(min-width:700px){.availableCard{grid-template-columns:minmax(0,.85fr) 1px minmax(0,1.15fr);align-items:stretch}.availableCard .availableDivider{width:1px;height:auto}.availableCard .cashflowSummary,.availableCard .availableMain{display:flex;flex-direction:column;justify-content:center}}
