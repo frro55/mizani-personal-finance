@@ -36,6 +36,11 @@ export default function Home() {
   const [budgets,setBudgets] = useState<{id:string;name:string;amount_minor:number;period:string;starts_on:string;ends_on:string|null}[]>([]);
   const [csvRows,setCsvRows] = useState<{date:string;description:string;amount:number;type:"income"|"expense"}[]>([]);
   const [csvName,setCsvName] = useState("");
+  const [debtForm,setDebtForm] = useState(false);
+  const [debtName,setDebtName] = useState("");
+  const [debtBalance,setDebtBalance] = useState("");
+  const [debtInstallment,setDebtInstallment] = useState("");
+  const [debtDueDate,setDebtDueDate] = useState(new Date().toISOString().slice(0,10));
 
   useEffect(() => {
     supabase.auth.getSession().then(({data}) => { setUser(data.session?.user ?? null); setAuthReady(true); });
@@ -117,6 +122,70 @@ export default function Home() {
     }
   },[active,user,supabase]);
 
+  async function saveDebt(e: React.FormEvent) {
+    e.preventDefault();
+    if (!user) return;
+    const balance = Number(debtBalance);
+    const installment = Number(debtInstallment);
+    if (!debtName.trim() || !Number.isFinite(balance) || balance <= 0 || !Number.isFinite(installment) || installment <= 0 || !debtDueDate) {
+      setNotice("أدخل اسم الدين والرصيد والقسط وتاريخ الاستحقاق بشكل صحيح.");
+      return;
+    }
+    setBusy(true); setNotice("");
+    try {
+      const {error} = await supabase.from("debts").insert({
+        user_id:user.id, name:debtName.trim(),
+        original_amount_minor:Math.round(balance*100),
+        current_balance_minor:Math.round(balance*100),
+        installment_minor:Math.round(installment*100),
+        next_due_date:debtDueDate
+      });
+      if(error) throw error;
+      const {data,error:loadError} = await supabase.from("debts").select("id,name,current_balance_minor,installment_minor,next_due_date").eq("user_id",user.id).order("created_at",{ascending:false});
+      if(loadError) throw loadError;
+      setDebts((data ?? []) as typeof debts);
+      setDebtForm(false);setDebtName("");setDebtBalance("");setDebtInstallment("");
+      setNotice("تم حفظ الدين وجدولة الأقساط المتبقية.");
+    } catch(e:unknown) { setNotice(errorMessage(e,"تعذر حفظ الدين.")); }
+    finally { setBusy(false); }
+  }
+
+  async function markDebtPayment(debt: typeof debts[number]) {
+    if(!user) return;
+    const remaining = Math.max(0,Number(debt.current_balance_minor)-Number(debt.installment_minor));
+    const nextDate = debt.next_due_date ? new Date(debt.next_due_date+"T12:00:00") : new Date();
+    nextDate.setMonth(nextDate.getMonth()+1);
+    const nextDue = remaining > 0 ? nextDate.toISOString().slice(0,10) : null;
+    setBusy(true);setNotice("");
+    try {
+      const {error} = await supabase.from("debts").update({current_balance_minor:remaining,next_due_date:nextDue}).eq("id",debt.id).eq("user_id",user.id);
+      if(error) throw error;
+      const {data,error:loadError} = await supabase.from("debts").select("id,name,current_balance_minor,installment_minor,next_due_date").eq("user_id",user.id).order("created_at",{ascending:false});
+      if(loadError) throw loadError;
+      setDebts((data ?? []) as typeof debts);
+      setNotice(remaining===0?"مبروك! تم تسجيل سداد آخر قسط.":"تم تسجيل سداد القسط وتحديث موعد القسط القادم.");
+    } catch(e:unknown) {setNotice(errorMessage(e,"تعذر تسجيل السداد."));}
+    finally {setBusy(false);}
+  }
+
+  function getSchedule(debt: typeof debts[number]) {
+    const schedule: {date:string;amount:number;balance:number}[] = [];
+    let balance = Number(debt.current_balance_minor);
+    if (!debt.next_due_date || balance <= 0 || Number(debt.installment_minor) <= 0) return schedule;
+    const first = new Date(debt.next_due_date+"T12:00:00");
+    for(let i=0;i<120 && balance>0;i++) {
+      const date = new Date(first);
+      const targetMonth = first.getMonth()+i;
+      date.setDate(1); date.setMonth(targetMonth);
+      const day = Math.min(first.getDate(),new Date(date.getFullYear(),date.getMonth()+1,0).getDate());
+      date.setDate(day);
+      const paid = Math.min(balance,Number(debt.installment_minor));
+      balance -= paid;
+      schedule.push({date:date.toISOString().slice(0,10),amount:paid/100,balance:balance/100});
+    }
+    return schedule;
+  }
+
   function readCsv(file: File) {
     setCsvName(file.name);
     const reader = new FileReader();
@@ -162,7 +231,7 @@ export default function Home() {
   if(!authReady) return <main className="shell" style={{minHeight:"100vh",display:"grid",placeItems:"center",padding:24}}>جارٍ الاتصال...</main>;
   if(!user) return <main className="shell" style={{minHeight:"100vh",display:"grid",placeItems:"center",padding:24,direction:"rtl"}}><section className="panel" style={{width:"100%",maxWidth:440,padding:28}}><div className="brand" style={{marginBottom:24}}><div className="brandIcon"><Wallet/></div><div><b>ميزانيتي</b><small>إدارة أموالك بوضوح</small></div></div><h1 style={{fontSize:24,marginBottom:8}}>{authMode==="signin"?"تسجيل الدخول":"إنشاء حساب جديد"}</h1><p style={{marginBottom:20,color:"var(--muted,#64748b)"}}>سجّل دخولك لحفظ عملياتك المالية بشكل آمن.</p><form onSubmit={submitAuth} style={{display:"grid",gap:14}}><label>البريد الإلكتروني<input required type="email" autoComplete="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="name@example.com" /></label><label>كلمة المرور<input required type="password" minLength={6} autoComplete={authMode==="signin"?"current-password":"new-password"} value={password} onChange={e=>setPassword(e.target.value)} placeholder="6 أحرف على الأقل" /></label><button className="primary full" disabled={busy} type="submit">{busy?"جارٍ التنفيذ...":authMode==="signin"?"دخول":"إنشاء الحساب"}</button></form>{authMessage&&<p role="status" style={{marginTop:16,overflowWrap:"anywhere"}}>{authMessage}</p>}<button className="outline" style={{width:"100%",marginTop:16}} onClick={()=>{setAuthMode(authMode==="signin"?"signup":"signin");setAuthMessage("");}}>{authMode==="signin"?"ليس لديك حساب؟ أنشئ حسابًا":"لديك حساب؟ سجّل الدخول"}</button></section></main>;
 
-  return <main className="shell"><aside className={menu?"sidebar open":"sidebar"}><div className="brand"><div className="brandIcon"><Wallet/></div><div><b>ميزانيتي</b><small>إدارة أموالك بوضوح</small></div><button className="close mobile" onClick={()=>setMenu(false)}><X/></button></div><p className="muted navTitle">القائمة الرئيسية</p><nav>{nav.map(([label,Icon])=><button key={label} onClick={()=>{setActive(label);setMenu(false)}} className={active===label?"nav active":"nav"}><Icon size={19}/>{label}{label==="استيراد كشف الحساب"&&<span className="csv">CSV</span>}</button>)}</nav><div className="sideBottom"><div className="privacy"><ShieldCheck/><div><b>بياناتك خاصة</b><small>محفوظة في حسابك</small></div></div><p style={{overflowWrap:"anywhere"}}>{user.email}<small>الريال السعودي · SAR</small></p><button className="outline" onClick={()=>void supabase.auth.signOut()}><LogOut size={16}/> تسجيل الخروج</button></div></aside><section className="main"><header className="top"><button className="menuBtn mobile" onClick={()=>setMenu(true)}><Menu/></button><div><h1>{active}</h1><p>تابع وضعك المالي واتخذ قرارات أوضح.</p></div><button className="primary" onClick={()=>setModal(true)}><Plus size={18}/> إضافة عملية</button></header>{notice&&<p role="status" style={{padding:12,margin:"8px 0 18px",borderRadius:10,background:"#eef6ff",overflowWrap:"anywhere"}}>{notice}</p>}
+  return <main className="shell"><aside className={menu?"sidebar open":"sidebar"}><div className="brand"><div className="brandIcon"><Wallet/></div><div><b>ميزانيتي</b><small>إدارة أموالك بوضوح</small></div><button className="close mobile" onClick={()=>setMenu(false)}><X/></button></div><p className="muted navTitle">القائمة الرئيسية</p><nav>{nav.map(([label,Icon])=><button key={label} onClick={()=>{setActive(label);setMenu(false)}} className={active===label?"nav active":"nav"}><Icon size={19}/>{label}{label==="استيراد كشف الحساب"&&<span className="csv">CSV</span>}</button>)}</nav><div className="sideBottom"><div className="privacy"><ShieldCheck/><div><b>بياناتك خاصة</b><small>محفوظة في حسابك</small></div></div><p style={{overflowWrap:"anywhere"}}>{user.email}<small>الريال السعودي · SAR</small></p><button className="outline" onClick={()=>void supabase.auth.signOut()}><LogOut size={16}/> تسجيل الخروج</button></div></aside><section className="main"><header className="top"><button className="menuBtn mobile" onClick={()=>setMenu(true)}><Menu/></button><div><h1>{active}</h1><p>تابع وضعك المالي واتخذ قرارات أوضح.</p></div>{(active==="نظرة عامة" || active==="العمليات المالية") && <button className="primary" onClick={()=>setModal(true)}><Plus size={18}/> إضافة عملية</button>}</header>{notice&&<p role="status" style={{padding:12,margin:"8px 0 18px",borderRadius:10,background:"#eef6ff",overflowWrap:"anywhere"}}>{notice}</p>}
       {active==="نظرة عامة" && <>
         <div className="welcome"><div><span className="eyebrow">ملخصك المالي</span><h2>أهلًا بك في ميزانيتي 👋</h2><p>ملخص العمليات المحفوظة في حسابك.</p></div><div className="month">{new Date().toLocaleDateString("ar-SA",{month:"long",year:"numeric"})}</div></div>
         <div className="cards"><article className="stat"><span>إجمالي الدخل</span><div className="statIcon green"><TrendingUp/></div><strong>{formatSAR(income)}</strong><small>من عملياتك المسجلة</small></article><article className="stat"><span>إجمالي المصروفات</span><div className="statIcon red"><TrendingDown/></div><strong>{formatSAR(expense)}</strong><small>من عملياتك المسجلة</small></article><article className="stat"><span>الصافي</span><div className="statIcon blue"><Wallet/></div><strong>{formatSAR(income-expense)}</strong><small>الدخل ناقص المصروفات</small></article></div>
@@ -170,7 +239,9 @@ export default function Home() {
       </>}
       {active==="العمليات المالية" && <section className="panel"><div className="panelHead"><div><h3>كل العمليات المالية</h3><p>{filtered.length} عملية مسجلة</p></div><label className="search"><Search size={17}/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="ابحث بالاسم أو التصنيف"/></label></div><div className="tableWrap"><table><thead><tr><th>العملية</th><th>النوع</th><th>التصنيف</th><th>التاريخ</th><th>المبلغ</th></tr></thead><tbody>{filtered.map(t=><tr key={t.id}><td><b>{t.title}</b></td><td>{t.kind==="income"?"دخل":"مصروف"}</td><td><span className="tag">{t.category}</span></td><td>{t.date}</td><td className={t.kind==="income"?"moneyIn":"moneyOut"}>{t.kind==="income"?"+":"−"}{formatSAR(t.amount)}</td></tr>)}</tbody></table>{!filtered.length&&<p className="empty">لا توجد عمليات مطابقة للبحث.</p>}</div><button className="primary" style={{marginTop:16}} onClick={()=>setModal(true)}><Plus size={17}/> إضافة عملية</button></section>}
       {active==="الميزانيات" && <section className="panel"><div className="panelHead"><div><h3>الميزانيات</h3><p>الميزانيات الأسبوعية والشهرية والسنوية المحفوظة</p></div></div>{budgets.length===0?<p className="empty">لا توجد ميزانيات بعد. هذه الصفحة جاهزة لعرض ميزانياتك المحفوظة.</p>:<div className="tableWrap"><table><thead><tr><th>الميزانية</th><th>الفترة</th><th>الحد المالي</th><th>بداية الميزانية</th><th>النهاية</th></tr></thead><tbody>{budgets.map(b=><tr key={b.id}><td><b>{b.name}</b></td><td>{({weekly:"أسبوعية",monthly:"شهرية",yearly:"سنوية"} as Record<string,string>)[b.period]||b.period}</td><td>{formatSAR(Number(b.amount_minor)/100)}</td><td>{b.starts_on}</td><td>{b.ends_on||"—"}</td></tr>)}</tbody></table></div>}</section>}
-      {active==="الديون والأقساط" && <section className="panel"><div className="panelHead"><div><h3>الديون والأقساط</h3><p>تابع الرصيد المتبقي وقيمة القسط وتاريخ الاستحقاق</p></div></div>{debts.length===0?<p className="empty">لا توجد ديون مسجلة بعد.</p>:<div className="tableWrap"><table><thead><tr><th>الدين / الجهة</th><th>الرصيد المتبقي</th><th>قيمة القسط</th><th>الاستحقاق القادم</th></tr></thead><tbody>{debts.map(d=><tr key={d.id}><td><b>{d.name}</b></td><td className="moneyOut">{formatSAR(Number(d.current_balance_minor)/100)}</td><td>{formatSAR(Number(d.installment_minor)/100)}</td><td>{d.next_due_date||"غير محدد"}</td></tr>)}</tbody></table></div>}</section>}
+      {active==="الديون والأقساط" && <section className="panel"><div className="panelHead"><div><h3>الديون والأقساط</h3><p>الأرصدة المتبقية وجدول كل قسط شهري حتى السداد</p></div><button className="primary" onClick={()=>setDebtForm(!debtForm)}><Plus size={17}/>{debtForm?"إلغاء":"إضافة دين أو قسط"}</button></div>
+      {debtForm&&<form onSubmit={saveDebt} style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:12,padding:16,background:"#f7fafc",borderRadius:12,marginBottom:18}}><label style={{display:"grid",gap:6}}>اسم الدين أو الجهة<input required value={debtName} onChange={e=>setDebtName(e.target.value)} placeholder="مثال: قسط السيارة"/></label><label style={{display:"grid",gap:6}}>الرصيد المتبقي (ريال)<input required type="number" min="0.01" step="0.01" value={debtBalance} onChange={e=>setDebtBalance(e.target.value)} placeholder="25000"/></label><label style={{display:"grid",gap:6}}>القسط الشهري (ريال)<input required type="number" min="0.01" step="0.01" value={debtInstallment} onChange={e=>setDebtInstallment(e.target.value)} placeholder="1365"/></label><label style={{display:"grid",gap:6}}>تاريخ القسط القادم<input required type="date" value={debtDueDate} onChange={e=>setDebtDueDate(e.target.value)}/></label><button className="primary" type="submit" disabled={busy} style={{justifyContent:"center"}}>{busy?"جارٍ الحفظ...":"حفظ الدين وإنشاء الجدول"}</button></form>}
+      {debts.length===0?<p className="empty">ما أضفت أي دين حتى الآن. أضف قسط السيارة أو أي التزام، وراح يظهر لك جدول مواعيد الأقساط المتبقية.</p>:<div style={{display:"grid",gap:16}}>{debts.map(d=>{const schedule=getSchedule(d);return <article key={d.id} style={{border:"1px solid var(--line)",borderRadius:12,padding:16}}><div style={{display:"flex",justifyContent:"space-between",gap:12,flexWrap:"wrap",alignItems:"center"}}><div><h3 style={{margin:"0 0 8px"}}>{d.name}</h3><p style={{color:"var(--muted)",margin:0,fontSize:12}}>القسط الشهري: {formatSAR(Number(d.installment_minor)/100)} · القادم: {d.next_due_date||"تم السداد بالكامل"}</p></div><div style={{textAlign:"left"}}><b style={{fontSize:19}}>{formatSAR(Number(d.current_balance_minor)/100)}</b><small style={{display:"block",color:"var(--muted)"}}>الرصيد المتبقي</small></div></div>{schedule.length>0&&<><h4 style={{margin:"18px 0 8px"}}>جدول الأقساط المتبقية ({schedule.length})</h4><div className="tableWrap"><table><thead><tr><th>رقم القسط</th><th>تاريخ الاستحقاق</th><th>مبلغ القسط</th><th>الرصيد بعد السداد</th></tr></thead><tbody>{schedule.map((item,index)=><tr key={item.date}><td>{index+1}</td><td>{new Date(item.date+"T12:00:00").toLocaleDateString("ar-SA",{year:"numeric",month:"long",day:"numeric"})}</td><td>{formatSAR(item.amount)}</td><td>{formatSAR(item.balance)}</td></tr>)}</tbody></table></div><button className="outline" disabled={busy} onClick={()=>void markDebtPayment(d)} style={{marginTop:12}}>تسجيل سداد القسط القادم</button></>}{schedule.length===0&&<p className="empty">تم سداد الدين بالكامل أو لم يتم تحديد موعد قسط قادم.</p>}</article>})}</div>}</section>}
       {active==="التقارير والتحليلات" && <div className="cards"><article className="stat"><span>إجمالي الدخل</span><div className="statIcon green"><TrendingUp/></div><strong>{formatSAR(income)}</strong><small>{tx.filter(t=>t.kind==="income").length} عملية دخل</small></article><article className="stat"><span>إجمالي المصروفات</span><div className="statIcon red"><TrendingDown/></div><strong>{formatSAR(expense)}</strong><small>{tx.filter(t=>t.kind==="expense").length} عملية مصروف</small></article><article className="stat"><span>صافي التدفق</span><div className="statIcon blue"><Wallet/></div><strong>{formatSAR(income-expense)}</strong><small>حسب جميع العمليات المسجلة</small></article><section className="panel" style={{gridColumn:"1 / -1"}}><h3>ملخص حسب التصنيف</h3><div className="tableWrap"><table><thead><tr><th>التصنيف</th><th>عدد العمليات</th><th>الدخل</th><th>المصروفات</th><th>الصافي</th></tr></thead><tbody>{Array.from(new Set(tx.map(t=>t.category))).map(cat=>{const rows=tx.filter(t=>t.category===cat);const inc=rows.filter(t=>t.kind==="income").reduce((s,t)=>s+t.amount,0);const exp=rows.filter(t=>t.kind==="expense").reduce((s,t)=>s+t.amount,0);return <tr key={cat}><td>{cat}</td><td>{rows.length}</td><td className="moneyIn">{formatSAR(inc)}</td><td className="moneyOut">{formatSAR(exp)}</td><td>{formatSAR(inc-exp)}</td></tr>})}</tbody></table>{tx.length===0&&<p className="empty">أضف عمليات مالية حتى تظهر التحليلات هنا.</p>}</div></section></div>}
       {active==="استيراد كشف الحساب" && <section className="panel"><h3>استيراد كشف الحساب من CSV</h3><p style={{color:"var(--muted)",margin:"8px 0 18px",lineHeight:1.9}}>ارفع ملف CSV بأربعة أعمدة بالترتيب: التاريخ، الوصف، المبلغ، النوع. النوع يكون income أو expense (أو دخل أو مصروف). الصف الأول للعناوين.</p><label style={{display:"grid",gap:10,maxWidth:520}}>اختيار ملف CSV<input type="file" accept=".csv,text/csv" onChange={e=>{const file=e.target.files?.[0];if(file)readCsv(file);}}/></label>{csvName&&<p style={{marginTop:12}}>الملف: {csvName}</p>}{csvRows.length>0&&<><h3 style={{marginTop:22}}>معاينة قبل الحفظ ({csvRows.length} عملية)</h3><div className="tableWrap"><table><thead><tr><th>التاريخ</th><th>الوصف</th><th>النوع</th><th>المبلغ</th></tr></thead><tbody>{csvRows.slice(0,10).map((row,i)=><tr key={i}><td>{row.date}</td><td>{row.description}</td><td>{row.type==="income"?"دخل":"مصروف"}</td><td>{formatSAR(row.amount)}</td></tr>)}</tbody></table></div><button className="primary" style={{marginTop:16}} disabled={busy} onClick={()=>void importCsv()}>{busy?"جارٍ الاستيراد...":`حفظ ${csvRows.length} عملية في حسابك`}</button></>}</section>}
       <footer>ميزانيتي © ٢٠٢٦ <span>حفظ سحابي عبر Supabase</span></footer></section>{modal&&<div className="overlay" onClick={()=>setModal(false)}><section className="modal" onClick={e=>e.stopPropagation()}><div className="modalHead"><div><h2>إضافة عملية مالية</h2><p>سجّل دخلك أو مصروفك</p></div><button className="close" onClick={()=>setModal(false)}><X/></button></div><form onSubmit={add}><div className="switch"><button type="button" className={kind==="expense"?"selected":""} onClick={()=>setKind("expense")}>مصروف</button><button type="button" className={kind==="income"?"selected":""} onClick={()=>setKind("income")}>دخل</button></div><label>اسم العملية<input required value={title} onChange={e=>setTitle(e.target.value)} placeholder="مثال: فاتورة الكهرباء"/></label><label>المبلغ بالريال<input required type="number" min="0.01" step="0.01" value={amount} onChange={e=>setAmount(e.target.value)} placeholder="0.00"/></label><label>التصنيف<select value={category} onChange={e=>setCategory(e.target.value)}>{["متفرقات","راتب","منزل","طعام ومقاهي","سيارة","أقساط","فواتير","صحة","ترفيه","تسوق"].map(c=><option key={c}>{c}</option>)}</select></label><button className="primary full" disabled={busy} type="submit">{busy?"جارٍ الحفظ...":"حفظ العملية"}</button></form></section></div>}</main>;
