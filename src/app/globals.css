@@ -256,3 +256,16 @@
 :root[data-theme="light"] .availableOnlyCard .availableMain .eyebrow{color:#315c9d!important}
 :root[data-theme="light"] .availableCard .cashflowSummary p,:root[data-theme="light"] .availableOnlyCard .availableMain p{color:#536579!important}
 @media(max-width:420px){.availableCard .cashflowSummary,.availableOnlyCard .availableMain{min-height:145px;padding:22px 18px!important}.availableCard .cashflowSummary h2,.availableOnlyCard .availableMain h2{font-size:clamp(23px,6vw,32px)!important}}
+
+
+/* Budget form: clear, compact desktop grid and touch-friendly mobile layout */
+.budgetForm{display:grid;gap:16px;padding:clamp(14px,2.2vw,24px);margin:0 0 20px;border:1px solid var(--line);border-radius:18px;background:var(--card);box-shadow:0 8px 24px rgba(15,23,42,.045);min-width:0}
+.budgetFields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px;align-items:start}
+.budgetField{display:grid;gap:8px;min-width:0;font-size:14px;font-weight:700;color:var(--ink);text-align:right}
+.budgetField select,.budgetField input{box-sizing:border-box;width:100%;min-width:0;min-height:48px;padding:11px 13px;border:1px solid var(--line);border-radius:11px;background:var(--surface,var(--card));color:var(--ink);font:inherit;font-weight:500;outline:none}
+.budgetField select:focus,.budgetField input:focus{border-color:#269875;box-shadow:0 0 0 3px rgba(38,152,117,.12)}
+.budgetField small{font-size:12px;font-weight:400;line-height:1.8;color:var(--muted)}
+.budgetCategoryField{grid-column:1/-1}
+.budgetHint{margin:0;padding:11px 13px;border-radius:10px;background:var(--soft,var(--card));color:var(--muted);font-size:13px;line-height:1.8}
+.budgetSave{width:100%;min-height:48px;justify-content:center!important;border-radius:12px}
+@media(max-width:640px){.budgetForm{padding:14px;gap:13px;border-radius:14px}.budgetFields{grid-template-columns:minmax(0,1fr);gap:13px}.budgetCategoryField{grid-column:auto}.budgetField select,.budgetField input{min-height:48px;font-size:16px}.budgetHint{font-size:12px}}
