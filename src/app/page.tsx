@@ -229,13 +229,41 @@ export default function Home() {
     }catch(e:unknown){setNotice(errorMessage(e,"تعذر حفظ الالتزام وجدول الأقساط."));}finally{setBusy(false);}
   }
   async function markInstallmentPaid(item:DebtInstallment){
-    if(!user||item.paid_at)return;setBusy(true);setNotice("");
+    if(!user||item.paid_at)return;
+    if(!accountId){setNotice("تعذر تحديد الحساب المالي. حدّث الصفحة وحاول مجددًا.");return;}
+    setBusy(true);setNotice("");
+    let markedPaid=false;
     try{
-      const {error}=await supabase.from("debt_installments").update({paid_at:new Date().toISOString()}).eq("id",item.id).eq("user_id",user.id).is("paid_at",null);if(error)throw error;
       const debt=debts.find(d=>d.id===item.debt_id);
-      if(debt){const remaining=Math.max(0,Number(debt.current_balance_minor)-Number(item.amount_minor));const next=installments.filter(i=>i.debt_id===item.debt_id&&i.id!==item.id&&!i.paid_at).sort((x,y)=>x.due_date.localeCompare(y.due_date))[0];const {error:ue}=await supabase.from("debts").update({current_balance_minor:remaining,next_due_date:next?.due_date??null}).eq("id",debt.id).eq("user_id",user.id);if(ue)throw ue;}
-      await refreshDebts(user.id);setNotice("تم تسجيل سداد الدفعة وتحديث الرصيد.");
-    }catch(e:unknown){setNotice(errorMessage(e,"تعذر تسجيل السداد."));}finally{setBusy(false);}
+      if(!debt)throw new Error("تعذر العثور على الالتزام المرتبط بالقسط.");
+      const {data:existingCategory,error:categoryError}=await supabase.from("categories").select("id").eq("user_id",user.id).eq("name","الأقساط والديون").limit(1).maybeSingle();
+      if(categoryError)throw categoryError;
+      let categoryId=existingCategory?.id as string|undefined;
+      if(!categoryId){
+        const {data:newCategory,error}=await supabase.from("categories").insert({user_id:user.id,name:"الأقساط والديون",applies_to:"expense"}).select("id").single();
+        if(error)throw error;
+        categoryId=newCategory.id;
+      }
+      const {error:paidError}=await supabase.from("debt_installments").update({paid_at:new Date().toISOString()}).eq("id",item.id).eq("user_id",user.id).is("paid_at",null);
+      if(paidError)throw paidError;
+      markedPaid=true;
+      const {error:txError}=await supabase.from("transactions").insert({
+        user_id:user.id,account_id:accountId,category_id:categoryId,type:"expense",
+        amount_minor:Number(item.amount_minor),description:`سداد قسط ${debt.name} [installment:${item.id}]`,
+        occurred_at:new Date(item.due_date+"T12:00:00").toISOString()
+      });
+      if(txError)throw txError;
+      const remaining=Math.max(0,Number(debt.current_balance_minor)-Number(item.amount_minor));
+      const next=installments.filter(i=>i.debt_id===item.debt_id&&i.id!==item.id&&!i.paid_at).sort((x,y)=>x.due_date.localeCompare(y.due_date))[0];
+      const {error:ue}=await supabase.from("debts").update({current_balance_minor:remaining,next_due_date:next?.due_date??null}).eq("id",debt.id).eq("user_id",user.id);
+      if(ue)throw ue;
+      await loadTransactions(user.id);
+      await refreshDebts(user.id);
+      setNotice("تم تسجيل سداد القسط وإضافته إلى المصروفات، وتم تحديث الصافي.");
+    }catch(e:unknown){
+      if(markedPaid)await supabase.from("debt_installments").update({paid_at:null}).eq("id",item.id).eq("user_id",user.id);
+      setNotice(errorMessage(e,"تعذر تسجيل سداد القسط. لم يتم اعتماد السداد."));
+    }finally{setBusy(false);}
   }
   async function deleteDebt(debt:Debt){
     if(!user||!window.confirm("تأكيد حذف "+debt.name+" وجميع أقساطه؟ لا يمكن التراجع."))return;setBusy(true);setNotice("");
