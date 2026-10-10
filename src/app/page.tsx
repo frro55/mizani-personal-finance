@@ -362,9 +362,6 @@ export default function Home() {
   const upcomingInstallments=useMemo(()=>installments.filter(item=>!item.paid_at&&item.due_date>=todayRiyadh&&item.due_date>=financialPeriod.start&&item.due_date<=financialPeriod.end),[installments,todayRiyadh,financialPeriod.start,financialPeriod.end]);
   const reservedInstallmentAmount=useMemo(()=>upcomingInstallments.reduce((sum,item)=>sum+Number(item.amount_minor)/100,0),[upcomingInstallments]);
   const availableToSpend=income-expense-reservedInstallmentAmount;
-  const todayRiyadh=riyadhDateKey(new Date());
-  const upcomingInstallments=useMemo(()=>installments.filter(item=>!item.paid_at&&item.due_date>=todayRiyadh&&item.due_date>=financialPeriod.start&&item.due_date<=financialPeriod.end),[installments,todayRiyadh,financialPeriod.start,financialPeriod.end]);
-  const availableToSpend=income-expense-upcomingInstallments.reduce((sum,item)=>sum+Number(item.amount_minor)/100,0);
   const filtered=periodTx.filter(t=>(t.category+" "+t.notes).toLowerCase().includes(search.toLowerCase()));
   async function deleteTransaction(item:Tx){
     if(!user||!window.confirm(`تأكيد حذف عملية ${item.category} بمبلغ ${formatSAR(item.amount)}؟`))return;
