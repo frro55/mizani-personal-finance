@@ -231,3 +231,11 @@
 :root[data-theme="light"] .availableCard .availableMain .eyebrow{color:#137653}
 :root[data-theme="light"] .availableCard .availableMain p{color:#315e50}
 @media(min-width:700px){.availableCard{grid-template-columns:minmax(0,.85fr) 1px minmax(0,1.15fr);align-items:stretch}.availableCard .availableDivider{width:1px;height:auto}.availableCard .cashflowSummary,.availableCard .availableMain{display:flex;flex-direction:column;justify-content:center}}
+
+/* Dashboard cashflow and available-to-spend as independent cards */
+.availableCard{position:relative;display:flex;align-items:center;justify-content:space-between;gap:16px}
+.availableCard .cashflowSummary{width:100%;min-width:0;min-height:150px;display:flex;flex-direction:column;justify-content:center}
+.availableOnlyCard{margin-top:16px;background:linear-gradient(135deg,#173f36,#1b3936)!important;border-color:#286b59!important}
+.availableOnlyCard .availableMain{flex:1;min-width:0;border:0!important;background:transparent!important;padding:0!important}
+.availableOnlyCard .availableIcon{position:static;flex:none;background:rgba(54,182,139,.14);color:#6ee7b7;border-radius:16px;padding:18px}
+@media(max-width:420px){.availableCard .cashflowSummary{min-height:130px}.availableOnlyCard .availableIcon{padding:12px}.availableOnlyCard .availableMain h2{font-size:clamp(23px,6vw,32px)}}
