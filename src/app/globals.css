@@ -115,3 +115,13 @@
 .homeExpenseButton:hover{background:#f0f8f4}
 :root[data-theme="dark"] .homeExpenseButton{background:var(--card);color:#8ee4c6;border-color:var(--line)}
 :root[data-theme="dark"] .homeExpenseButton:hover{background:#263b37}
+
+/* Dashboard action buttons below income and expense totals */
+.homeStatsActions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:0 0 20px}
+.homeStatsActions button{min-height:64px;border:1px solid transparent;border-radius:13px;padding:14px 16px;display:flex;align-items:center;justify-content:center;gap:10px;font-size:16px;font-weight:700;transition:transform .15s,filter .15s}
+.homeStatsActions button:hover{filter:brightness(.97);transform:translateY(-1px)}
+.homeIncomeAction{background:#e4f4e9;color:#185c36;border-color:#d0e9d9!important}
+.homeExpenseAction{background:#fce9e9;color:#a52c22;border-color:#f5d7d7!important}
+:root[data-theme="dark"] .homeIncomeAction{background:#173f32;color:#a5efc9;border-color:#285c48!important}
+:root[data-theme="dark"] .homeExpenseAction{background:#482a30;color:#ffaaa5;border-color:#633940!important}
+@media(max-width:480px){.homeStatsActions{gap:9px}.homeStatsActions button{min-height:60px;padding:11px 7px;font-size:14px}}
