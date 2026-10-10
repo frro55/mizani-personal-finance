@@ -132,3 +132,9 @@
 .welcome .eyebrow{color:var(--muted)}
 :root[data-theme="dark"] .welcome{background:var(--card);border-color:var(--line)}
 @media(max-width:720px){.welcome{position:relative;flex-wrap:wrap;align-items:flex-start}.welcome>div:last-child{max-width:100%}}
+
+
+/* Keep installment schedules contained on narrow screens */
+.installmentTableWrap{width:100%;max-width:100%;overflow-x:auto;overscroll-behavior-x:contain;border-radius:8px}
+.installmentTableWrap table{min-width:680px}
+@media(max-width:720px){.installmentTableWrap table{min-width:640px}.installmentTableWrap th,.installmentTableWrap td{padding:10px 8px}.installmentTableWrap .outline{white-space:nowrap;width:auto;min-width:110px}}
