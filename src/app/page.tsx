@@ -5,8 +5,8 @@ import { Wallet, Plus, TrendingUp, TrendingDown, Search, X, Menu, ShieldCheck, C
 import { formatSAR } from "@/lib/format";
 import { createClient } from "@/lib/supabase/client";
 
-type Tx = { id: string; title: string; notes: string; category: string; date: string; amount: number; kind: "income" | "expense" };
-type TransactionRow = { id: string; type: "income" | "expense"; amount_minor: number | string; occurred_at: string; description: string | null; categories: { name: string } | { name: string }[] | null };
+type Tx = { id: string; title: string; notes: string; category: string; categoryId: string | null; date: string; amount: number; kind: "income" | "expense" };
+type TransactionRow = { id: string; type: "income" | "expense"; amount_minor: number | string; occurred_at: string; description: string | null; category_id: string | null; categories: { name: string } | { name: string }[] | null };
 type Debt = { id:string; name:string; current_balance_minor:number; installment_minor:number; next_due_date:string|null; debt_type:"fixed"|"variable"; provider:string; monthly_due_day:number|null; total_installments:number|null };
 type DebtInstallment = { id:string; debt_id:string; installment_number:number; due_date:string; amount_minor:number; paid_at:string|null; payment_note:string };
 type VariableRow = {due_date:string;amount:string};
@@ -139,9 +139,9 @@ export default function Home() {
       }
       if (!aid) throw new Error("تعذر إنشاء الحساب المالي.");
       setAccountId(aid);
-      const {data,error} = await supabase.from("transactions").select("id,type,amount_minor,occurred_at,description,categories(name)").eq("user_id",uid).order("occurred_at",{ascending:false});
+      const {data,error} = await supabase.from("transactions").select("id,type,amount_minor,occurred_at,description,category_id,categories(name)").eq("user_id",uid).order("occurred_at",{ascending:false});
       if (error) throw error;
-      setTx(((data ?? []) as unknown as TransactionRow[]).map((row) => {const categoryName=(Array.isArray(row.categories)?row.categories[0]?.name:row.categories?.name)?.trim()||"بدون تصنيف";return {id:row.id,title:categoryName,notes:row.description||"",category:categoryName,date:riyadhDateKey(row.occurred_at),amount:Number(row.amount_minor)/100,kind:row.type};}));
+      setTx(((data ?? []) as unknown as TransactionRow[]).map((row) => {const categoryName=(Array.isArray(row.categories)?row.categories[0]?.name:row.categories?.name)?.trim()||"بدون تصنيف";return {id:row.id,title:categoryName,notes:row.description||"",category:categoryName,categoryId:row.category_id,date:riyadhDateKey(row.occurred_at),amount:Number(row.amount_minor)/100,kind:row.type};}));
     } catch (e:unknown) {
       setNotice(errorMessage(e, "تعذر تحميل البيانات. تحقق من إعدادات Supabase والصلاحيات."));
     } finally { setBusy(false); }
@@ -263,7 +263,8 @@ export default function Home() {
     const categoryNames=selected.parent_id
       ? [selected.name]
       : [selected.name,...personalCategories.filter(item=>item.parent_id===selected.id).map(item=>item.name)];
-    return periodTx.filter(t=>t.kind==="expense"&&categoryNames.includes(t.category)).reduce((sum,t)=>sum+Math.round(t.amount*100),0);
+    const categoryIds=new Set(selected.parent_id?[selected.id]:[selected.id,...personalCategories.filter(item=>item.parent_id===selected.id).map(item=>item.id)]);
+    return periodTx.filter(t=>t.kind==="expense"&&t.categoryId!==null&&categoryIds.has(t.categoryId)).reduce((sum,t)=>sum+Math.round(t.amount*100),0);
   }
 
   function addVariableRow(){setVariableRows(rows=>[...rows,{due_date:rows[rows.length-1]?.due_date||riyadhDateKey(new Date()),amount:""}]);}
@@ -312,7 +313,7 @@ export default function Home() {
       markedPaid=true;
       const {error:txError}=await supabase.from("transactions").insert({
         user_id:user.id,account_id:accountId,category_id:categoryId,type:"expense",
-        amount_minor:Number(item.amount_minor),description:`سداد قسط ${debt.name}`,
+        amount_minor:Number(item.amount_minor),description:`سداد قسط ${debt.name}`,installment_id:item.id,
         occurred_at:new Date(item.due_date+"T12:00:00").toISOString()
       });
       if(txError)throw txError;
@@ -335,12 +336,10 @@ export default function Home() {
     try{
       const debt=debts.find(d=>d.id===item.debt_id);
       if(!debt)throw new Error("تعذر العثور على الالتزام المرتبط بالقسط.");
-      const description=`سداد قسط ${debt.name}`;
-      const occurredAt=new Date(item.due_date+"T12:00:00").toISOString();
-      const {data:paymentTx,error:findError}=await supabase.from("transactions").select("id").eq("user_id",user.id).eq("description",description).eq("occurred_at",occurredAt).eq("amount_minor",Number(item.amount_minor)).limit(1).maybeSingle();
+      const {data:linkedTransactions,error:findError}=await supabase.from("transactions").select("id").eq("user_id",user.id).eq("installment_id",item.id).limit(2);
       if(findError)throw findError;
-      if(!paymentTx)throw new Error("لم أجد عملية المصروف المرتبطة بهذا السداد، لذلك لم ألغِ السداد لتجنب تغيير البيانات بشكل خاطئ.");
-      const {error:deleteTxError}=await supabase.from("transactions").delete().eq("id",paymentTx.id).eq("user_id",user.id);
+      if(!linkedTransactions||linkedTransactions.length!==1)throw new Error("لم أجد مصروفًا واحدًا مرتبطًا بهذا القسط بشكل مؤكد. لم يتم إلغاء السداد لتجنب حذف عملية خاطئة.");
+      const {error:deleteTxError}=await supabase.from("transactions").delete().eq("id",linkedTransactions[0].id).eq("user_id",user.id).eq("installment_id",item.id);
       if(deleteTxError)throw deleteTxError;
       const {error:unpayError}=await supabase.from("debt_installments").update({paid_at:null}).eq("id",item.id).eq("user_id",user.id);
       if(unpayError)throw unpayError;
@@ -438,7 +437,7 @@ export default function Home() {
     base.setDate(Math.min(monthStartDay,new Date(base.getFullYear(),base.getMonth()+1,0).getDate()));
     base.setMonth(base.getMonth()+offset);
     const end=new Date(base);end.setMonth(end.getMonth()+1);end.setDate(end.getDate()-1);
-    return {start:base.toISOString().slice(0,10),end:dateKey(end),label:end.toLocaleDateString("en-GB-u-ca-gregory-nu-latn",{month:"long",year:"numeric"})};
+    return {start:dateKey(base),end:dateKey(end),label:end.toLocaleDateString("en-GB-u-ca-gregory-nu-latn",{month:"long",year:"numeric"})};
   }
   const financialPeriod=getFinancialPeriod(monthOffset);
   function monthPicker(){
