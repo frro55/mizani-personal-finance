@@ -88,6 +88,14 @@ export default function Home() {
   const [debtInstallment,setDebtInstallment] = useState("");
   const [debtDueDate,setDebtDueDate] = useState(riyadhDateKey(new Date()));
 
+  useEffect(()=>{
+    if(!modal||kind!=="expense")return;
+    const parent=personalCategories.find(item=>item.id===mainCategory&&!item.parent_id&&item.applies_to==="expense");
+    if(!parent)return;
+    const children=personalCategories.filter(item=>item.parent_id===parent.id);
+    if(children.length&&!children.some(item=>item.name===category))setCategory(children[0].name);
+    else if(!children.length&&category!==parent.name)setCategory(parent.name);
+  },[modal,kind,mainCategory,personalCategories,category]);
   useEffect(() => {
     if(!user)return;
     void (async()=>{
