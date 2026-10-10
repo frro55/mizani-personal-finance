@@ -6,6 +6,10 @@ import { formatSAR } from "@/lib/format";
 import { createClient } from "@/lib/supabase/client";
 
 type Tx = { id: string; title: string; category: string; date: string; amount: number; kind: "income" | "expense" };
+type TransactionRow = { id: string; type: "income" | "expense"; amount_minor: number | string; occurred_at: string; description: string | null; categories: { name: string } | { name: string }[] | null };
+function errorMessage(error: unknown, fallback: string) {
+  return error instanceof Error ? error.message : fallback;
+}
 const nav = [["نظرة عامة",LayoutDashboard],["العمليات المالية",ReceiptText],["الميزانيات",Target],["الديون والأقساط",CreditCard],["التقارير والتحليلات",ChartNoAxesCombined],["استيراد كشف الحساب",FileUp]] as const;
 
 export default function Home() {
@@ -38,7 +42,7 @@ export default function Home() {
   const loadTransactions = useCallback(async (uid:string) => {
     setBusy(true); setNotice("");
     try {
-      let {data:accounts,error:accountError} = await supabase.from("accounts").select("id").eq("user_id",uid).limit(1);
+      const {data:accounts,error:accountError} = await supabase.from("accounts").select("id").eq("user_id",uid).limit(1);
       if (accountError) throw accountError;
       let aid = accounts?.[0]?.id as string|undefined;
       if (!aid) {
@@ -49,9 +53,9 @@ export default function Home() {
       setAccountId(aid);
       const {data,error} = await supabase.from("transactions").select("id,type,amount_minor,occurred_at,description,categories(name)").eq("user_id",uid).order("occurred_at",{ascending:false});
       if (error) throw error;
-      setTx((data ?? []).map((row:any) => ({id:row.id,title:row.description || "عملية مالية",category:row.categories?.name || "متفرقات",date:String(row.occurred_at).slice(0,10),amount:Number(row.amount_minor)/100,kind:row.type})));
-    } catch (e:any) {
-      setNotice(e?.message || "تعذر تحميل البيانات. تحقق من إعدادات Supabase والصلاحيات.");
+      setTx(((data ?? []) as unknown as TransactionRow[]).map((row) => ({id:row.id,title:row.description || "عملية مالية",category:Array.isArray(row.categories) ? row.categories[0]?.name || "متفرقات" : row.categories?.name || "متفرقات",date:String(row.occurred_at).slice(0,10),amount:Number(row.amount_minor)/100,kind:row.type})));
+    } catch (e:unknown) {
+      setNotice(errorMessage(e, "تعذر تحميل البيانات. تحقق من إعدادات Supabase والصلاحيات."));
     } finally { setBusy(false); }
   },[supabase]);
 
@@ -69,7 +73,7 @@ export default function Home() {
         const {error} = await supabase.auth.signInWithPassword({email:email.trim(),password});
         if(error) throw error;
       }
-    } catch(e:any) { setAuthMessage(e?.message || "تعذر تسجيل الدخول."); }
+    } catch(e:unknown) { setAuthMessage(errorMessage(e, "تعذر تسجيل الدخول.")); }
     finally {setBusy(false);}
   }
 
@@ -80,7 +84,7 @@ export default function Home() {
     if(!title.trim()||!Number.isFinite(n)||n<=0)return;
     setBusy(true);setNotice("");
     try {
-      let {data:cat,error:catError} = await supabase.from("categories").select("id").eq("user_id",user.id).eq("name",category).limit(1);
+      const {data:cat,error:catError} = await supabase.from("categories").select("id").eq("user_id",user.id).eq("name",category).limit(1);
       if(catError) throw catError;
       let categoryId = cat?.[0]?.id as string|undefined;
       if(!categoryId) {
@@ -92,7 +96,7 @@ export default function Home() {
       if(error) throw error;
       await loadTransactions(user.id);
       setTitle("");setAmount("");setCategory("متفرقات");setModal(false);setNotice("تم حفظ العملية في قاعدة البيانات.");
-    } catch(e:any) {setNotice(e?.message || "تعذر حفظ العملية.");}
+    } catch(e:unknown) {setNotice(errorMessage(e, "تعذر حفظ العملية."));}
     finally {setBusy(false);}
   }
 
