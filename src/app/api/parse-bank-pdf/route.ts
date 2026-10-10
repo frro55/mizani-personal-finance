@@ -25,7 +25,7 @@ export async function POST(request: Request) {
     const rows: { date: string; description: string; amount: number; type: "income" | "expense" }[] = [];
     for (let i = 0; i < dates.length; i++) {
       const match = dates[i];
-      const start = Math.max(0, (match.index ?? 0) - 650);
+      const previous = i > 0 ? dates[i - 1] : null;\n      const start = previous ? (previous.index ?? 0) + previous[0].length : Math.max(0, (match.index ?? 0) - 800);
       const end = (match.index ?? 0) + match[0].length;
       const chunk = text.slice(start, end);
       const amounts = [...chunk.matchAll(/(\d{1,3}(?:,\d{3})*|\d+)\.\d{2}\s*(?:SAR)?/g)]
@@ -38,7 +38,7 @@ export async function POST(request: Request) {
       if (!(amount > 0) || !Number.isFinite(amount)) continue;
       const date = `${match[1]}-${match[2]}-${match[3]}`;
       const dateIndex = match.index ?? 0;
-      const descriptionText = text.slice(Math.max(0, dateIndex - 900), dateIndex);
+      const descriptionText = chunk;
       const lines = descriptionText.split(/\r?\n/).map(line => line.trim()).filter(Boolean);
       const description = lines.slice(-5).join(" ").replace(/\d{1,3}(?:,\d{3})*\.\d{2}\s*(?:SAR)?/g, " ").replace(/Ref\. No.*$/i, "").replace(/\s+/g, " ").trim().slice(-240) || "عملية من كشف البنك";
       const type = credit > 0 ? "income" : "expense";
