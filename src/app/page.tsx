@@ -141,7 +141,7 @@ export default function Home() {
       setAccountId(aid);
       const {data,error} = await supabase.from("transactions").select("id,type,amount_minor,occurred_at,description,categories(name)").eq("user_id",uid).order("occurred_at",{ascending:false});
       if (error) throw error;
-      setTx(((data ?? []) as unknown as TransactionRow[]).map((row) => ({id:row.id,title:normalizeCategory(Array.isArray(row.categories) ? row.categories[0]?.name : row.categories?.name),notes:row.description || "",category:normalizeCategory(Array.isArray(row.categories) ? row.categories[0]?.name : row.categories?.name),date:riyadhDateKey(row.occurred_at),amount:Number(row.amount_minor)/100,kind:row.type})));
+      setTx(((data ?? []) as unknown as TransactionRow[]).map((row) => {const categoryName=(Array.isArray(row.categories)?row.categories[0]?.name:row.categories?.name)?.trim()||"بدون تصنيف";return {id:row.id,title:categoryName,notes:row.description||"",category:categoryName,date:riyadhDateKey(row.occurred_at),amount:Number(row.amount_minor)/100,kind:row.type};}));
     } catch (e:unknown) {
       setNotice(errorMessage(e, "تعذر تحميل البيانات. تحقق من إعدادات Supabase والصلاحيات."));
     } finally { setBusy(false); }
@@ -187,7 +187,7 @@ export default function Home() {
       const {error} = await supabase.from("transactions").insert({user_id:user.id,account_id:accountId,category_id:categoryId,type:kind,amount_minor:Math.round(n*100),description:notes.trim(),occurred_at:new Date().toISOString()});
       if(error) throw error;
       await loadTransactions(user.id);
-      setNotes("");setAmount("");setCategory(kind==="income"?"الراتب":"مصروف آخر");setMainCategory("متفرقات");setModal(false);setNotice("تم حفظ العملية في قاعدة البيانات.");
+      setNotes("");setAmount("");if(kind==="income"){setCategory("الراتب");}else{const defaultParent=personalCategories.find(item=>!item.parent_id&&item.applies_to==="expense"&&item.name==="متفرقات")||personalCategories.find(item=>!item.parent_id&&item.applies_to==="expense");if(defaultParent){setMainCategory(defaultParent.id);const defaultChild=personalCategories.find(item=>item.parent_id===defaultParent.id);setCategory(defaultChild?.name||defaultParent.name);}}setModal(false);setNotice("تم حفظ العملية في قاعدة البيانات.");
     } catch(e:unknown) {setNotice(errorMessage(e, "تعذر حفظ العملية."));}
     finally {setBusy(false);}
   }
