@@ -50,6 +50,7 @@ export default function Home() {
         if (error) throw error;
         aid = newAccount.id;
       }
+      if (!aid) throw new Error("تعذر إنشاء الحساب المالي.");
       setAccountId(aid);
       const {data,error} = await supabase.from("transactions").select("id,type,amount_minor,occurred_at,description,categories(name)").eq("user_id",uid).order("occurred_at",{ascending:false});
       if (error) throw error;
