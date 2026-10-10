@@ -203,3 +203,13 @@
 :root[data-theme="dark"] .donutHole{background:#202d3e;box-shadow:0 0 0 1px #40516a}
 @media(max-width:850px){.reportsGrid{grid-template-columns:1fr}.donutLayout{grid-template-columns:minmax(120px,.8fr) minmax(0,1.2fr);gap:14px}.donutChart{max-width:180px}}
 @media(max-width:420px){.donutLayout{grid-template-columns:1fr}.donutChart{width:170px}.pieLegend{gap:9px}.reportsStats .stat{padding:16px}.reportsStats .stat strong{font-size:21px}}
+
+/* Fix dark-mode debt summary colors and keep currency figures readable on mobile */
+:root[data-theme="dark"] .debtStats .debtStatTotal{background:linear-gradient(135deg,#22364d,#202d3e)!important;border-inline-start:4px solid #6fa8ff!important;border-top:1px solid #40536b!important}
+:root[data-theme="dark"] .debtStats .debtStatMonth{background:linear-gradient(135deg,#1d403b,#202d3e)!important;border-inline-start:4px solid #36c99a!important;border-top:1px solid #36564f!important}
+:root[data-theme="dark"] .debtStats .debtStatLate{background:linear-gradient(135deg,#402d36,#202d3e)!important;border-inline-start:4px solid #ef7777!important;border-top:1px solid #59404a!important}
+:root[data-theme="dark"] .debtStats .debtStatUpcoming{background:linear-gradient(135deg,#403a2b,#202d3e)!important;border-inline-start:4px solid #e6b85c!important;border-top:1px solid #5a503a!important}
+.debtStats .stat strong{direction:ltr!important;unicode-bidi:isolate;text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap;font-size:clamp(16px,3.7vw,24px);letter-spacing:-.025em;max-width:100%}
+.debtStats .debtStatMonth strong{font-size:clamp(16px,3.5vw,24px)}
+.debtStats .stat{min-width:0;overflow:hidden}
+@media(max-width:420px){.debtStats .stat{padding:14px 12px!important}.debtStats .stat>span{font-size:11px}.debtStats .stat strong{font-size:clamp(15px,4vw,18px);letter-spacing:-.04em}.debtStats .debtStatMonth small{font-size:10px;line-height:1.6}}
