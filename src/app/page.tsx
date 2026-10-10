@@ -49,8 +49,11 @@ export default function Home() {
   const [amount,setAmount] = useState("");
   const [category,setCategory] = useState("متفرقات");
   const [active,setActive] = useState("نظرة عامة");
+  const [activeRestored,setActiveRestored] = useState(false);
   const [monthStartDay,setMonthStartDay] = useState(1);
   const [monthOffset,setMonthOffset] = useState(0);
+  useEffect(()=>{try{const saved=window.sessionStorage.getItem("mizani-active-page");if(saved&&nav.some(([label])=>label===saved))setActive(saved);}catch{}setActiveRestored(true);},[]);
+  useEffect(()=>{if(!activeRestored)return;try{window.sessionStorage.setItem("mizani-active-page",active);}catch{}},[active,activeRestored]);
   const [monthPickerOpen,setMonthPickerOpen] = useState(false);
   const [menu,setMenu] = useState(false);
   const [notice,setNotice] = useState("");
