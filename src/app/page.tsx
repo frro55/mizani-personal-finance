@@ -77,7 +77,7 @@ export default function Home() {
   const [budgetForm,setBudgetForm] = useState(false);
   const [budgetName,setBudgetName] = useState("");
   const [budgetAmount,setBudgetAmount] = useState("");
-  const [budgetCategory,setBudgetCategory] = useState("الأكل والمطاعم");
+  const [budgetCategory,setBudgetCategory] = useState("@parent:الأكل والمطاعم");
   const [budgetPeriod,setBudgetPeriod] = useState<"weekly"|"monthly"|"yearly">("monthly");
   const [budgetStart,setBudgetStart] = useState(riyadhDateKey(new Date()));
   const [csvRows,setCsvRows] = useState<{date:string;description:string;amount:number;type:"income"|"expense"}[]>([]);
@@ -211,9 +211,11 @@ export default function Home() {
     else {end.setFullYear(end.getFullYear()+1);end.setDate(end.getDate()-1);}
     setBusy(true);setNotice("");
     try {
-      const {data:existing,error:catError}=await supabase.from("categories").select("id").eq("user_id",user.id).eq("name",budgetCategory.trim()).limit(1);
-      if(catError)throw catError; let categoryId=existing?.[0]?.id as string|undefined;
-      if(!categoryId){const {data:newCat,error}=await supabase.from("categories").insert({user_id:user.id,name:budgetCategory.trim(),applies_to:"expense"}).select("id").single();if(error)throw error;categoryId=newCat.id;}
+      const parentBudget=budgetCategory.startsWith("@parent:");
+      const selectedCategory=parentBudget?budgetCategory.slice(8):budgetCategory.trim();
+      let categoryId:string|undefined;
+      if(parentBudget){categoryId=personalCategories.find(c=>c.name===selectedCategory&&!c.parent_id)?.id;if(!categoryId){const {data:p,error:pe}=await supabase.from("categories").select("id").eq("user_id",user.id).eq("name",selectedCategory).is("parent_id",null).limit(1).maybeSingle();if(pe)throw pe;categoryId=p?.id;if(!categoryId){const {data:np,error:ne}=await supabase.from("categories").insert({user_id:user.id,name:selectedCategory,applies_to:"expense",parent_id:null}).select("id").single();if(ne)throw ne;categoryId=np.id;}}}
+      else {const {data:existing,error:catError}=await supabase.from("categories").select("id").eq("user_id",user.id).eq("name",selectedCategory).limit(1);if(catError)throw catError;categoryId=existing?.[0]?.id;if(!categoryId){const {data:newCat,error}=await supabase.from("categories").insert({user_id:user.id,name:selectedCategory,applies_to:"expense"}).select("id").single();if(error)throw error;categoryId=newCat.id;}}
       const {error}=await supabase.from("budgets").insert({user_id:user.id,category_id:categoryId,name:budgetName.trim(),amount_minor:amountMinor,period:budgetPeriod,starts_on:budgetStart,ends_on:dateKey(end)});
       if(error)throw error;
       const {data,error:loadError}=await supabase.from("budgets").select("id,name,amount_minor,period,starts_on,ends_on,category_id,categories(name)").eq("user_id",user.id).order("starts_on",{ascending:false});
@@ -227,7 +229,8 @@ export default function Home() {
   }
   function budgetSpent(b:typeof budgets[number]){
     const category=normalizeCategory(Array.isArray(b.categories)?b.categories[0]?.name:b.categories?.name);
-    return periodTx.filter(t=>t.kind==="expense"&&t.category===category).reduce((sum,t)=>sum+Math.round(t.amount*100),0);
+    const children=expenseHierarchy[category]||[];
+    return periodTx.filter(t=>t.kind==="expense"&&(t.category===category||children.includes(t.category))).reduce((sum,t)=>sum+Math.round(t.amount*100),0);
   }
 
   function addVariableRow(){setVariableRows(rows=>[...rows,{due_date:rows[rows.length-1]?.due_date||riyadhDateKey(new Date()),amount:""}]);}
@@ -454,7 +457,7 @@ export default function Home() {
         <div className="panelHead"><div><h3>الميزانيات</h3><p>متابعة الصرف في الفترة المالية المحددة</p></div><button className="primary" onClick={()=>setBudgetForm(v=>!v)}><Plus size={17}/>{budgetForm?"إلغاء":"إضافة ميزانية"}</button></div>
         {budgetForm&&<form onSubmit={saveBudget} style={{display:"grid",gap:14,padding:16,background:"var(--card)",borderRadius:12,marginBottom:18}}>
           <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:12}}>
-            <label style={{display:"grid",gap:6}}>التصنيف<select required value={budgetCategory} onChange={e=>setBudgetCategory(e.target.value)}>{Array.from(new Set([...expenseCategories,...personalCategories.filter(c=>c.applies_to==="expense"||c.applies_to==="both").map(c=>c.name)])).map(c=><option key={c} value={c}>{c}</option>)}</select></label>
+            <label style={{display:"grid",gap:6}}>التصنيف<select required value={budgetCategory} onChange={e=>setBudgetCategory(e.target.value)}>{expenseCategories.map(c=><option key={c} value={"@parent:"+c}>{c} — الكل</option>)}{Object.entries(expenseHierarchy).flatMap(([p,children])=>children.map(ch=><option key={p+"-"+ch} value={ch}>{p} — {ch}</option>))}{personalCategories.filter(c=>c.applies_to==="expense"||c.applies_to==="both").map(c=><option key={c.id} value={c.name}>{c.parent_id?(personalCategories.find(p=>p.id===c.parent_id)?.name+" — "):""}{c.name}</option>)}</select></label>
             <label style={{display:"grid",gap:6}}>اسم الميزانية<input required value={budgetName} onChange={e=>setBudgetName(e.target.value)} placeholder="ميزانية المطاعم"/></label>
             <label style={{display:"grid",gap:6}}>الحد المالي (ر.س)<input required type="number" min="0.01" step="0.01" value={budgetAmount} onChange={e=>setBudgetAmount(e.target.value)} placeholder="1000"/></label>
             <label style={{display:"grid",gap:6}}>الفترة<select value={budgetPeriod} onChange={e=>setBudgetPeriod(e.target.value as "weekly"|"monthly"|"yearly")}><option value="weekly">أسبوعية</option><option value="monthly">شهرية</option><option value="yearly">سنوية</option></select></label>
@@ -462,8 +465,8 @@ export default function Home() {
           </div><p style={{margin:0,color:"var(--muted)",fontSize:13}}>يُحسب الصرف من المصروفات المسجلة في نفس التصنيف وضمن فترة الميزانية.</p>
           <button className="primary" type="submit" disabled={busy} style={{justifyContent:"center"}}>{busy?"جارٍ الحفظ...":"حفظ الميزانية"}</button>
         </form>}
-        {budgets.length===0?<p className="empty">ما عندك ميزانيات حاليًا. اضغط «إضافة ميزانية» لإنشاء أول ميزانية من هنا.</p>:<div style={{display:"grid",gap:12}}>{budgets.map(b=>{const spent=budgetSpent(b),limit=Number(b.amount_minor),pct=limit?Math.round(spent/limit*100):0;const cat=normalizeCategory(Array.isArray(b.categories)?b.categories[0]?.name:b.categories?.name);return <article key={b.id} style={{border:"1px solid var(--line)",borderRadius:12,padding:16}}>
-          <div style={{display:"flex",justifyContent:"space-between",gap:12,alignItems:"start",flexWrap:"wrap"}}><div><h3 style={{margin:"0 0 6px"}}>{b.name}</h3><p style={{margin:0,color:"var(--muted)",fontSize:13}}>{cat||"بدون تصنيف"} · {({weekly:"أسبوعية",monthly:"شهرية",yearly:"سنوية"} as Record<string,string>)[b.period]||b.period} · {b.starts_on} إلى {b.ends_on||"مفتوح"}</p></div><button className="close" title="حذف الميزانية" onClick={()=>void deleteBudget(b.id,b.name)}><X size={16}/></button></div>
+        {budgets.length===0?<p className="empty">ما عندك ميزانيات حاليًا. اضغط «إضافة ميزانية» لإنشاء أول ميزانية من هنا.</p>:<div style={{display:"grid",gap:12}}>{budgets.map(b=>{const spent=budgetSpent(b),limit=Number(b.amount_minor),pct=limit?Math.round(spent/limit*100):0;const rawCat=Array.isArray(b.categories)?b.categories[0]?.name:b.categories?.name;const cat=rawCat||"بدون تصنيف";const isParent=expenseCategories.includes(cat)||personalCategories.some(c=>c.name===cat&&!c.parent_id);return <article key={b.id} style={{border:"1px solid var(--line)",borderRadius:12,padding:16}}>
+          <div style={{display:"flex",justifyContent:"space-between",gap:12,alignItems:"start",flexWrap:"wrap"}}><div><h3 style={{margin:"0 0 6px"}}>{b.name}</h3><p style={{margin:0,color:"var(--muted)",fontSize:13}}>{cat}{isParent?" — يشمل الفروع":""} · {({weekly:"أسبوعية",monthly:"شهرية",yearly:"سنوية"} as Record<string,string>)[b.period]||b.period} · {b.starts_on} إلى {b.ends_on||"مفتوح"}</p></div><button className="close" title="حذف الميزانية" onClick={()=>void deleteBudget(b.id,b.name)}><X size={16}/></button></div>
           <div style={{display:"flex",justifyContent:"space-between",gap:8,marginTop:16,flexWrap:"wrap"}}><span>المصروف: <b>{formatSAR(spent/100)}</b></span><span>الحد: <b>{formatSAR(limit/100)}</b></span><span className={spent>limit?"moneyOut":"moneyIn"}>{spent>limit?"تجاوزت الحد":"المتبقي"}: <b>{formatSAR(Math.abs(limit-spent)/100)}</b></span></div>
           <div className="bar" style={{marginTop:10}}><span style={{width:Math.min(100,pct)+"%",background:spent>limit?"#dc2626":undefined}}/></div><small style={{display:"block",marginTop:6,color:"var(--muted)"}}>{pct}% من الميزانية مستخدم</small>
         </article>})}</div>}
