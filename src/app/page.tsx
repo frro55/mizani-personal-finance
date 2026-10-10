@@ -41,7 +41,13 @@ export default function Home() {
   const [debtProvider,setDebtProvider] = useState("");
   const [debtTotalCount,setDebtTotalCount] = useState("12");
   const [variableRows,setVariableRows] = useState<VariableRow[]>([{due_date:new Date().toISOString().slice(0,10),amount:""}]);
-  const [budgets,setBudgets] = useState<{id:string;name:string;amount_minor:number;period:string;starts_on:string;ends_on:string|null}[]>([]);
+  const [budgets,setBudgets] = useState<{id:string;name:string;amount_minor:number;period:string;starts_on:string;ends_on:string|null;category_id:string|null;categories:{name:string}|{name:string}[]|null}[]>([]);
+  const [budgetForm,setBudgetForm] = useState(false);
+  const [budgetName,setBudgetName] = useState("");
+  const [budgetAmount,setBudgetAmount] = useState("");
+  const [budgetCategory,setBudgetCategory] = useState("الأكل والمطاعم");
+  const [budgetPeriod,setBudgetPeriod] = useState<"weekly"|"monthly"|"yearly">("monthly");
+  const [budgetStart,setBudgetStart] = useState(new Date().toISOString().slice(0,10));
   const [csvRows,setCsvRows] = useState<{date:string;description:string;amount:number;type:"income"|"expense"}[]>([]);
   const [csvName,setCsvName] = useState("");
   const [debtForm,setDebtForm] = useState(false);
@@ -121,7 +127,7 @@ export default function Home() {
   useEffect(() => {
     if (!user) return;
     if (active === "الميزانيات") {
-      void supabase.from("budgets").select("id,name,amount_minor,period,starts_on,ends_on").eq("user_id",user.id).order("starts_on",{ascending:false})
+      void supabase.from("budgets").select("id,name,amount_minor,period,starts_on,ends_on,category_id,categories(name)").eq("user_id",user.id).order("starts_on",{ascending:false})
         .then(({data,error}) => { if(error) setNotice(error.message); else setBudgets((data ?? []) as typeof budgets); });
     }
     if (active === "الديون والأقساط") {
@@ -140,6 +146,36 @@ export default function Home() {
     if(dr.error) throw dr.error;if(ir.error) throw ir.error;
     setDebts((dr.data??[]) as Debt[]);setInstallments((ir.data??[]) as DebtInstallment[]);
   }
+
+  async function saveBudget(e:React.FormEvent) {
+    e.preventDefault(); if(!user)return;
+    const amountMinor=Math.round(Number(budgetAmount)*100);
+    if(!budgetName.trim()||!budgetCategory.trim()||!Number.isFinite(amountMinor)||amountMinor<=0||!budgetStart){setNotice("أدخل اسم الميزانية والتصنيف والمبلغ والتاريخ بشكل صحيح.");return;}
+    const start=new Date(budgetStart+"T12:00:00"); const end=new Date(start);
+    if(budgetPeriod==="weekly")end.setDate(end.getDate()+6);
+    else if(budgetPeriod==="monthly"){end.setMonth(end.getMonth()+1);end.setDate(end.getDate()-1);}
+    else {end.setFullYear(end.getFullYear()+1);end.setDate(end.getDate()-1);}
+    setBusy(true);setNotice("");
+    try {
+      const {data:existing,error:catError}=await supabase.from("categories").select("id").eq("user_id",user.id).eq("name",budgetCategory.trim()).limit(1);
+      if(catError)throw catError; let categoryId=existing?.[0]?.id as string|undefined;
+      if(!categoryId){const {data:newCat,error}=await supabase.from("categories").insert({user_id:user.id,name:budgetCategory.trim(),applies_to:"expense"}).select("id").single();if(error)throw error;categoryId=newCat.id;}
+      const {error}=await supabase.from("budgets").insert({user_id:user.id,category_id:categoryId,name:budgetName.trim(),amount_minor:amountMinor,period:budgetPeriod,starts_on:budgetStart,ends_on:end.toISOString().slice(0,10)});
+      if(error)throw error;
+      const {data,error:loadError}=await supabase.from("budgets").select("id,name,amount_minor,period,starts_on,ends_on,category_id,categories(name)").eq("user_id",user.id).order("starts_on",{ascending:false});
+      if(loadError)throw loadError;setBudgets((data??[]) as typeof budgets);setBudgetName("");setBudgetAmount("");setBudgetForm(false);setNotice("تم حفظ الميزانية بنجاح.");
+    } catch(e:unknown){setNotice(errorMessage(e,"تعذر حفظ الميزانية."));} finally{setBusy(false);}
+  }
+  async function deleteBudget(id:string,name:string){
+    if(!user||!window.confirm("تأكيد حذف ميزانية "+name+"؟"))return;setBusy(true);setNotice("");
+    try{const {error}=await supabase.from("budgets").delete().eq("id",id).eq("user_id",user.id);if(error)throw error;setBudgets(items=>items.filter(item=>item.id!==id));setNotice("تم حذف الميزانية.");}
+    catch(e:unknown){setNotice(errorMessage(e,"تعذر حذف الميزانية."));}finally{setBusy(false);}
+  }
+  function budgetSpent(b:typeof budgets[number]){
+    const category=Array.isArray(b.categories)?b.categories[0]?.name:b.categories?.name;
+    return tx.filter(t=>t.kind==="expense"&&t.category===category&&t.date>=b.starts_on&&(!b.ends_on||t.date<=b.ends_on)).reduce((sum,t)=>sum+Math.round(t.amount*100),0);
+  }
+
   function addVariableRow(){setVariableRows(rows=>[...rows,{due_date:rows[rows.length-1]?.due_date||new Date().toISOString().slice(0,10),amount:""}]);}
   async function saveDebt(e:React.FormEvent) {
     e.preventDefault();if(!user)return;
@@ -239,7 +275,24 @@ export default function Home() {
         <div className="contentGrid"><section className="panel"><div className="panelHead"><div><h3>آخر العمليات</h3><p>{busy?"جارٍ تحديث البيانات...":"العمليات المحفوظة"}</p></div><label className="search"><Search size={17}/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="ابحث عن عملية"/></label></div><div className="tableWrap"><table><thead><tr><th>العملية</th><th>التصنيف</th><th>التاريخ</th><th>المبلغ</th></tr></thead><tbody>{filtered.slice(0,8).map(t=><tr key={t.id}><td><b>{t.title}</b></td><td><span className="tag">{t.category}</span></td><td>{t.date}</td><td className={t.kind==="income"?"moneyIn":"moneyOut"}>{t.kind==="income"?"+":"−"}{formatSAR(t.amount)}</td></tr>)}</tbody></table>{filtered.length===0&&<p className="empty">{busy?"جارٍ تحميل العمليات...":"لا توجد عمليات محفوظة بعد."}</p>}</div></section><aside className="panel sidePanel"><h3>نظرة سريعة</h3><p>المصروفات مقارنة بالدخل</p><div className="bar"><span style={{width:(income?Math.min(100,expense/income*100):0)+"%"}}/></div><div className="barLegend"><span>نسبة المصروفات</span><b>{income?Math.round(expense/income*100):0}%</b></div><div className="note"><ShieldCheck size={20}/><div><b>خصوصيتك مهمة</b><p>كل مستخدم يصل إلى عملياته فقط عبر سياسات قاعدة البيانات.</p></div></div><button className="outline" onClick={()=>setModal(true)}><Plus size={17}/> تسجيل عملية جديدة</button></aside></div>
       </>}
       {active==="العمليات المالية" && <section className="panel"><div className="panelHead"><div><h3>كل العمليات المالية</h3><p>{filtered.length} عملية مسجلة</p></div><label className="search"><Search size={17}/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="ابحث بالاسم أو التصنيف"/></label></div><div className="tableWrap"><table><thead><tr><th>العملية</th><th>النوع</th><th>التصنيف</th><th>التاريخ</th><th>المبلغ</th></tr></thead><tbody>{filtered.map(t=><tr key={t.id}><td><b>{t.title}</b></td><td>{t.kind==="income"?"دخل":"مصروف"}</td><td><span className="tag">{t.category}</span></td><td>{t.date}</td><td className={t.kind==="income"?"moneyIn":"moneyOut"}>{t.kind==="income"?"+":"−"}{formatSAR(t.amount)}</td></tr>)}</tbody></table>{!filtered.length&&<p className="empty">لا توجد عمليات مطابقة للبحث.</p>}</div><button className="primary" style={{marginTop:16}} onClick={()=>setModal(true)}><Plus size={17}/> إضافة عملية</button></section>}
-      {active==="الميزانيات" && <section className="panel"><div className="panelHead"><div><h3>الميزانيات</h3><p>الميزانيات الأسبوعية والشهرية والسنوية المحفوظة</p></div></div>{budgets.length===0?<p className="empty">لا توجد ميزانيات بعد. هذه الصفحة جاهزة لعرض ميزانياتك المحفوظة.</p>:<div className="tableWrap"><table><thead><tr><th>الميزانية</th><th>الفترة</th><th>الحد المالي</th><th>بداية الميزانية</th><th>النهاية</th></tr></thead><tbody>{budgets.map(b=><tr key={b.id}><td><b>{b.name}</b></td><td>{({weekly:"أسبوعية",monthly:"شهرية",yearly:"سنوية"} as Record<string,string>)[b.period]||b.period}</td><td>{formatSAR(Number(b.amount_minor)/100)}</td><td>{b.starts_on}</td><td>{b.ends_on||"—"}</td></tr>)}</tbody></table></div>}</section>}
+      {active==="الميزانيات" && <section className="panel">
+        <div className="panelHead"><div><h3>الميزانيات</h3><p>حدد حدًا لكل تصنيف وتابع الصرف من عملياتك المسجلة</p></div><button className="primary" onClick={()=>setBudgetForm(v=>!v)}><Plus size={17}/>{budgetForm?"إلغاء":"إضافة ميزانية"}</button></div>
+        {budgetForm&&<form onSubmit={saveBudget} style={{display:"grid",gap:14,padding:16,background:"#f7fafc",borderRadius:12,marginBottom:18}}>
+          <div style={{display:"grid",gridTemplateColumns:"repeat(auto-fit,minmax(180px,1fr))",gap:12}}>
+            <label style={{display:"grid",gap:6}}>اسم الميزانية<input required value={budgetName} onChange={e=>setBudgetName(e.target.value)} placeholder="ميزانية المطاعم"/></label>
+            <label style={{display:"grid",gap:6}}>التصنيف<input required list="budget-category-options" value={budgetCategory} onChange={e=>setBudgetCategory(e.target.value)} placeholder="الأكل والمطاعم"/><datalist id="budget-category-options">{["الأكل والمطاعم","السكن","المواصلات","التسوق","الفواتير","الصحة","الترفيه","متفرقات"].map(c=><option key={c} value={c}/>)}</datalist></label>
+            <label style={{display:"grid",gap:6}}>الحد المالي (ر.س)<input required type="number" min="0.01" step="0.01" value={budgetAmount} onChange={e=>setBudgetAmount(e.target.value)} placeholder="1000"/></label>
+            <label style={{display:"grid",gap:6}}>الفترة<select value={budgetPeriod} onChange={e=>setBudgetPeriod(e.target.value as "weekly"|"monthly"|"yearly")}><option value="weekly">أسبوعية</option><option value="monthly">شهرية</option><option value="yearly">سنوية</option></select></label>
+            <label style={{display:"grid",gap:6}}>تاريخ البداية<input required type="date" value={budgetStart} onChange={e=>setBudgetStart(e.target.value)}/></label>
+          </div><p style={{margin:0,color:"var(--muted)",fontSize:13}}>يُحسب الصرف من المصروفات المسجلة في نفس التصنيف وضمن فترة الميزانية.</p>
+          <button className="primary" type="submit" disabled={busy} style={{justifyContent:"center"}}>{busy?"جارٍ الحفظ...":"حفظ الميزانية"}</button>
+        </form>}
+        {budgets.length===0?<p className="empty">ما عندك ميزانيات حاليًا. اضغط «إضافة ميزانية» لإنشاء أول ميزانية من هنا.</p>:<div style={{display:"grid",gap:12}}>{budgets.map(b=>{const spent=budgetSpent(b),limit=Number(b.amount_minor),pct=limit?Math.round(spent/limit*100):0;const cat=Array.isArray(b.categories)?b.categories[0]?.name:b.categories?.name;return <article key={b.id} style={{border:"1px solid var(--line)",borderRadius:12,padding:16}}>
+          <div style={{display:"flex",justifyContent:"space-between",gap:12,alignItems:"start",flexWrap:"wrap"}}><div><h3 style={{margin:"0 0 6px"}}>{b.name}</h3><p style={{margin:0,color:"var(--muted)",fontSize:13}}>{cat||"بدون تصنيف"} · {({weekly:"أسبوعية",monthly:"شهرية",yearly:"سنوية"} as Record<string,string>)[b.period]||b.period} · {b.starts_on} إلى {b.ends_on||"مفتوح"}</p></div><button className="close" title="حذف الميزانية" onClick={()=>void deleteBudget(b.id,b.name)}><X size={16}/></button></div>
+          <div style={{display:"flex",justifyContent:"space-between",gap:8,marginTop:16,flexWrap:"wrap"}}><span>المصروف: <b>{formatSAR(spent/100)}</b></span><span>الحد: <b>{formatSAR(limit/100)}</b></span><span className={spent>limit?"moneyOut":"moneyIn"}>{spent>limit?"تجاوزت الحد":"المتبقي"}: <b>{formatSAR(Math.abs(limit-spent)/100)}</b></span></div>
+          <div className="bar" style={{marginTop:10}}><span style={{width:Math.min(100,pct)+"%",background:spent>limit?"#dc2626":undefined}}/></div><small style={{display:"block",marginTop:6,color:"var(--muted)"}}>{pct}% من الميزانية مستخدم</small>
+        </article>})}</div>}
+      </section>}
       {active==="الديون والأقساط" && <section className="panel">
       <div className="panelHead"><div><h3>الالتزامات والأقساط</h3><p>مواعيد الاستحقاق والمتأخرات والمدفوعات</p></div><button className="primary" onClick={()=>setDebtForm(!debtForm)}><Plus size={17}/>{debtForm?"إلغاء":"إضافة التزام"}</button></div>
       {debtForm&&<form onSubmit={saveDebt} style={{display:"grid",gap:14,padding:16,background:"#f7fafc",borderRadius:12,marginBottom:18}}>
