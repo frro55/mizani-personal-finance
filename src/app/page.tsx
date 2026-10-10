@@ -101,7 +101,7 @@ export default function Home() {
     void (async()=>{
       const {data,error}=await supabase.from("categories").select("id,name,applies_to,parent_id").eq("user_id",user.id).order("name");
       if(error){setNotice(error.message);return;}
-      let rows=(data??[]) as {id:string;name:string;applies_to:string;parent_id:string|null}[];
+      const rows=(data??[]) as {id:string;name:string;applies_to:string;parent_id:string|null}[];
       if(rows.length===0){
         for(const parentName of expenseCategories){
           const {data:parent,error:pe}=await supabase.from("categories").insert({user_id:user.id,name:parentName,applies_to:"expense",parent_id:null}).select("id,name,applies_to,parent_id").single();
