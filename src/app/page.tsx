@@ -260,9 +260,6 @@ export default function Home() {
   function budgetSpent(b:typeof budgets[number]){
     const selected=personalCategories.find(item=>item.id===b.category_id);
     if(!selected)return 0;
-    const categoryNames=selected.parent_id
-      ? [selected.name]
-      : [selected.name,...personalCategories.filter(item=>item.parent_id===selected.id).map(item=>item.name)];
     const categoryIds=new Set(selected.parent_id?[selected.id]:[selected.id,...personalCategories.filter(item=>item.parent_id===selected.id).map(item=>item.id)]);
     return periodTx.filter(t=>t.kind==="expense"&&t.categoryId!==null&&categoryIds.has(t.categoryId)).reduce((sum,t)=>sum+Math.round(t.amount*100),0);
   }
@@ -336,8 +333,20 @@ export default function Home() {
     try{
       const debt=debts.find(d=>d.id===item.debt_id);
       if(!debt)throw new Error("تعذر العثور على الالتزام المرتبط بالقسط.");
-      const {data:linkedTransactions,error:findError}=await supabase.from("transactions").select("id").eq("user_id",user.id).eq("installment_id",item.id).limit(2);
+      let {data:linkedTransactions,error:findError}=await supabase.from("transactions").select("id").eq("user_id",user.id).eq("installment_id",item.id).limit(2);
       if(findError)throw findError;
+      // Backward compatibility for payments created before installment_id existed.
+      if(!linkedTransactions?.length){
+        const description=`سداد قسط ${debt.name}`;
+        const occurredAt=new Date(item.due_date+"T12:00:00").toISOString();
+        const {data:legacyMatches,error:legacyError}=await supabase.from("transactions").select("id").eq("user_id",user.id).eq("description",description).eq("occurred_at",occurredAt).eq("amount_minor",Number(item.amount_minor)).is("installment_id",null).limit(2);
+        if(legacyError)throw legacyError;
+        if(legacyMatches?.length===1){
+          const {error:linkError}=await supabase.from("transactions").update({installment_id:item.id}).eq("id",legacyMatches[0].id).eq("user_id",user.id).is("installment_id",null);
+          if(linkError)throw linkError;
+          linkedTransactions=legacyMatches;
+        }
+      }
       if(!linkedTransactions||linkedTransactions.length!==1)throw new Error("لم أجد مصروفًا واحدًا مرتبطًا بهذا القسط بشكل مؤكد. لم يتم إلغاء السداد لتجنب حذف عملية خاطئة.");
       const {error:deleteTxError}=await supabase.from("transactions").delete().eq("id",linkedTransactions[0].id).eq("user_id",user.id).eq("installment_id",item.id);
       if(deleteTxError)throw deleteTxError;
