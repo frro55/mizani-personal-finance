@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import pdf from "pdf-parse";
+import { getDocument } from "pdfjs-dist/legacy/build/pdf.mjs";
 
 export const runtime = "nodejs";
 
@@ -18,8 +18,14 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "حجم الملف يتجاوز 15 ميجابايت." }, { status: 413 });
     }
     const buffer = Buffer.from(await file.arrayBuffer());
-    const parsed = await pdf(buffer);
-    const text = parsed.text.replace(/\u00a0/g, " ");
+    const document = await getDocument({ data: new Uint8Array(buffer), useSystemFonts: true }).promise;
+    const pageTexts: string[] = [];
+    for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber++) {
+      const page = await document.getPage(pageNumber);
+      const content = await page.getTextContent();
+      pageTexts.push(content.items.map(item => "str" in item ? item.str : "").join(" "));
+    }
+    const text = pageTexts.join("\\n").replace(/\u00a0/g, " ");
     const dateRegex = /\b(20\d{2})\/(\d{2})\/(\d{2})\b/g;
     const dates = [...text.matchAll(dateRegex)];
     const rows: { date: string; description: string; amount: number; type: "income" | "expense" }[] = [];
@@ -47,7 +53,7 @@ export async function POST(request: Request) {
     }
     const unique = rows.filter((row, index) => rows.findIndex(other => other.date === row.date && other.amount === row.amount && other.type === row.type && other.description === row.description) === index);
     if (!unique.length) return NextResponse.json({ error: "لم أستطع استخراج العمليات من هذا الملف. تأكد أنه كشف حساب PDF نصي صادر من البنك." }, { status: 422 });
-    return NextResponse.json({ rows: unique, pages: parsed.numpages });
+    return NextResponse.json({ rows: unique, pages: document.numPages });
   } catch {
     return NextResponse.json({ error: "تعذر قراءة ملف PDF. جرّب تنزيل الكشف من البنك مباشرة بصيغة PDF ثم أعد المحاولة." }, { status: 400 });
   }
