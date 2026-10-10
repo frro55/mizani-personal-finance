@@ -65,3 +65,12 @@
 :root[data-theme="dark"] .switch button.selected{background:#1f2937;color:#8ee4c6}
 :root[data-theme="dark"] .settingsChoice.selected{color:#e8fff6}
 :root[data-theme="dark"] .settingsLabel input,:root[data-theme="dark"] .settingsLabel select{color:var(--ink)}
+
+/* Remaining dark-mode contrast fixes for forms and action controls */
+:root[data-theme="dark"] .panel form{color:var(--ink)}
+:root[data-theme="dark"] .panel form[style*="background"]{background:var(--card)!important}
+:root[data-theme="dark"] .panel label{color:var(--ink)}
+:root[data-theme="dark"] .panel input,:root[data-theme="dark"] .panel select,:root[data-theme="dark"] .panel textarea{background:#111827!important;color:#f3f4f6!important;border-color:#4b5563!important}
+:root[data-theme="dark"] .panel input::placeholder,:root[data-theme="dark"] .modal input::placeholder{color:#aab4c4}
+:root[data-theme="dark"] .primary{color:#06271e}
+:root[data-theme="dark"] .month{background:var(--card)!important;color:var(--ink)!important}
