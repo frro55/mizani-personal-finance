@@ -198,7 +198,7 @@ export default function Home() {
       void supabase.from("budgets").select("id,name,amount_minor,period,starts_on,ends_on,category_id,categories(name)").eq("user_id",user.id).order("starts_on",{ascending:false})
         .then(({data,error}) => { if(error) setNotice(error.message); else setBudgets((data ?? []) as typeof budgets); });
     }
-    if (active === "الديون والأقساط") {
+    if (active === "الديون والأقساط" || active === "نظرة عامة") {
       void Promise.all([
         supabase.from("debts").select("id,name,current_balance_minor,installment_minor,next_due_date,debt_type,provider,monthly_due_day,total_installments").eq("user_id",user.id).order("created_at",{ascending:false}),
         supabase.from("debt_installments").select("id,debt_id,installment_number,due_date,amount_minor,paid_at,payment_note").eq("user_id",user.id).order("due_date",{ascending:true})
