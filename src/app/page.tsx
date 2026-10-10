@@ -461,7 +461,7 @@ export default function Home() {
   const monthlyInstallments=useMemo(()=>installments.filter(item=>!item.paid_at&&item.due_date>=financialPeriod.start&&item.due_date<=financialPeriod.end).reduce((sum,item)=>sum+Number(item.amount_minor)/100,0),[installments,financialPeriod.start,financialPeriod.end]);
   const monthlyInstallmentCount=useMemo(()=>installments.filter(item=>!item.paid_at&&item.due_date>=financialPeriod.start&&item.due_date<=financialPeriod.end).length,[installments,financialPeriod.start,financialPeriod.end]);
   const todayRiyadh=riyadhDateKey(new Date());
-  const upcomingInstallments=useMemo(()=>installments.filter(item=>!item.paid_at&&item.due_date>=todayRiyadh&&item.due_date>=financialPeriod.start&&item.due_date<=financialPeriod.end),[installments,todayRiyadh,financialPeriod.start,financialPeriod.end]);
+  const upcomingInstallments=useMemo(()=>installments.filter(item=>!item.paid_at&&item.due_date>=financialPeriod.start&&item.due_date<=financialPeriod.end),[installments,financialPeriod.start,financialPeriod.end]);
   const reservedInstallmentAmount=useMemo(()=>upcomingInstallments.reduce((sum,item)=>sum+Number(item.amount_minor)/100,0),[upcomingInstallments]);
   const availableToSpend=income-expense-reservedInstallmentAmount;
   const filtered=periodTx.filter(t=>(t.category+" "+t.notes).toLowerCase().includes(search.toLowerCase()));
