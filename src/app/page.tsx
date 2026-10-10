@@ -318,11 +318,16 @@ export default function Home() {
       const next=installments.filter(i=>i.debt_id===item.debt_id&&i.id!==item.id&&!i.paid_at).sort((x,y)=>x.due_date.localeCompare(y.due_date))[0];
       const {error:ue}=await supabase.from("debts").update({current_balance_minor:remaining,next_due_date:next?.due_date??null}).eq("id",debt.id).eq("user_id",user.id);
       if(ue)throw ue;
+      // Database changes are complete; refresh failures must not roll back only part of a successful payment.
+      markedPaid=false;
       await loadTransactions(user.id);
       await refreshDebts(user.id);
       setNotice("تم تسجيل سداد القسط وإضافته إلى المصروفات، وتم تحديث الصافي.");
     }catch(e:unknown){
-      if(markedPaid)await supabase.from("debt_installments").update({paid_at:null}).eq("id",item.id).eq("user_id",user.id);
+      if(markedPaid){
+        await supabase.from("transactions").delete().eq("user_id",user.id).eq("installment_id",item.id);
+        await supabase.from("debt_installments").update({paid_at:null}).eq("id",item.id).eq("user_id",user.id);
+      }
       setNotice(errorMessage(e,"تعذر تسجيل سداد القسط. لم يتم اعتماد السداد."));
     }finally{setBusy(false);}
   }
