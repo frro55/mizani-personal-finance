@@ -312,7 +312,7 @@ export default function Home() {
       markedPaid=true;
       const {error:txError}=await supabase.from("transactions").insert({
         user_id:user.id,account_id:accountId,category_id:categoryId,type:"expense",
-        amount_minor:Number(item.amount_minor),description:`سداد قسط ${debt.name} [installment:${item.id}]`,
+        amount_minor:Number(item.amount_minor),description:`سداد قسط ${debt.name}`,
         occurred_at:new Date(item.due_date+"T12:00:00").toISOString()
       });
       if(txError)throw txError;
