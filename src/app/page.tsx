@@ -289,7 +289,7 @@ export default function Home() {
     base.setDate(Math.min(monthStartDay,new Date(base.getFullYear(),base.getMonth()+1,0).getDate()));
     base.setMonth(base.getMonth()+offset);
     const end=new Date(base);end.setMonth(end.getMonth()+1);end.setDate(end.getDate()-1);
-    return {start:base.toISOString().slice(0,10),end:end.toISOString().slice(0,10),label:base.toLocaleDateString("en-GB-u-ca-gregory-nu-latn",{month:"long",year:"numeric"})};
+    return {start:base.toISOString().slice(0,10),end:end.toISOString().slice(0,10),label:end.toLocaleDateString("en-GB-u-ca-gregory-nu-latn",{month:"long",year:"numeric"})};
   }
   const financialPeriod=getFinancialPeriod(monthOffset);
   const periodTx=useMemo(()=>tx.filter(t=>t.date>=financialPeriod.start&&t.date<=financialPeriod.end),[tx,financialPeriod.start,financialPeriod.end]);
