@@ -106,3 +106,12 @@
  .homeStats .stat strong{font-size:18px;overflow-wrap:anywhere}
  .homeStats .statIcon{left:12px;top:12px;width:30px;height:30px}
 }
+
+
+/* Put quick income/expense actions inside the overview welcome card */
+.homeQuickActions{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-top:15px}
+.homeQuickActions .primary{padding:10px 14px}
+.homeExpenseButton{display:inline-flex;align-items:center;justify-content:center;gap:8px;border:1px solid #d3e5de;background:#fff;color:#17664e;padding:10px 14px;border-radius:9px;font-weight:600}
+.homeExpenseButton:hover{background:#f0f8f4}
+:root[data-theme="dark"] .homeExpenseButton{background:var(--card);color:#8ee4c6;border-color:var(--line)}
+:root[data-theme="dark"] .homeExpenseButton:hover{background:#263b37}
