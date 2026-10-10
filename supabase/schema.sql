@@ -32,7 +32,7 @@ alter table public.profiles
   check (financial_month_start_day between 1 and 28);
 
 alter table public.categories
-  add column if not exists parent_id uuid references public.categories(id) on delete cascade;
+  add column if not exists parent_id uuid references public.categories(id) on delete set null;
 
 alter table public.debts
   add column if not exists debt_type text not null default 'fixed',
