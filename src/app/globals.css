@@ -410,3 +410,9 @@
 .accountRenameForm>div{display:flex;gap:8px}
 .accountRenameForm>div button{flex:1;min-height:38px;border-radius:9px;font-size:12px;font-weight:700}
 @media(max-width:420px){.accountDetailActions{flex-wrap:wrap}.accountDetailActions .accountChoose,.accountDetailActions .accountChosen{flex:1 1 42%}.accountDetailActions .accountRenameButton,.accountDetailActions .accountDeleteButton{flex:1 1 40%}}
+
+.accountsCreateModal{width:min(100%,520px);max-height:min(88vh,760px);overflow:auto}
+.accountsCreateModal .accountCreateForm{display:grid;grid-template-columns:1fr;gap:16px;margin-top:20px}
+.accountsModalActions{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.accountsModalActions button{display:flex;align-items:center;justify-content:center;gap:7px;min-height:46px}
+@media(max-width:520px){.accountsCreateModal{padding:20px}.accountsModalActions{grid-template-columns:1fr 1fr}}
