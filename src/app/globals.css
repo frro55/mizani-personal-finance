@@ -317,3 +317,25 @@
 .accountManageItem small{color:var(--muted)}
 .transferAction{align-self:stretch;min-width:78px;border:1px solid #d4a72c;border-radius:14px;background:#713f12;color:#fef3c7;font-weight:800;padding:12px 16px}
 @media(max-width:650px){.cashflowCards{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.cashflowCards .availableCard{padding:15px;min-height:165px}.cashflowCards .availableCard p{font-size:12px;line-height:1.7}.accountCard{flex-basis:82vw}.accountCreateForm{grid-template-columns:1fr}.transferAction{min-width:58px;padding:10px 8px}.accountManageItem{align-items:flex-start;flex-wrap:wrap}}
+
+
+/* Dashboard compact balance cards and aligned quick actions */
+.cashflowCards{align-items:stretch}
+.cashflowCards .availableCard{height:100%;min-height:0;box-sizing:border-box;display:flex;flex-direction:column;justify-content:flex-start;gap:12px}
+.cashflowCards .availableCard .cashflowSummary,.cashflowCards .availableCard .availableMain{display:flex;flex:1;flex-direction:column;align-items:flex-start;gap:10px;width:100%}
+.cashflowCards .availableCard .eyebrow{min-height:1.6em;display:flex;align-items:center}
+.cashflowCards .availableCard h2{font-size:clamp(20px,2.6vw,32px);line-height:1.3;margin:0;white-space:nowrap;max-width:100%;letter-spacing:-.4px}
+.cashflowCards .availableCard p{font-size:13px;line-height:1.65;margin:0;color:#fde68a;min-height:2.8em}
+.cashflowCards .availableCard .moneyOut{color:#f87171!important}
+.cashflowCards .availableCard .moneyIn{color:#facc15!important}
+.homeQuickActions,.homeStatsActions{display:grid!important;grid-template-columns:minmax(0,1fr) minmax(0,1fr) 76px;gap:10px;align-items:stretch}
+.homeQuickActions>button,.homeStatsActions>button{width:100%;min-width:0;margin:0;box-sizing:border-box}
+.homeQuickActions .transferAction,.homeStatsActions .transferAction{grid-column:3;grid-row:1;padding:10px 5px;min-width:0;display:flex;align-items:center;justify-content:center;gap:5px;font-size:13px}
+@media(max-width:650px){
+ .cashflowCards{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
+ .cashflowCards .availableCard{height:100%;min-height:0;padding:15px;gap:10px}
+ .cashflowCards .availableCard h2{font-size:clamp(17px,4.2vw,25px);letter-spacing:-.7px}
+ .cashflowCards .availableCard p{font-size:12px;line-height:1.65;min-height:2.5em}
+ .homeQuickActions,.homeStatsActions{grid-template-columns:minmax(0,1fr) minmax(0,1fr) 64px;gap:7px}
+ .homeQuickActions .transferAction,.homeStatsActions .transferAction{font-size:12px;padding:8px 3px}
+}
