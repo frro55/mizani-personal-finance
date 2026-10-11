@@ -1,7 +1,7 @@
 "use client";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import type { User } from "@supabase/supabase-js";
-import { Wallet, Plus, TrendingUp, TrendingDown, Search, X, Menu, ShieldCheck, CreditCard, ChartNoAxesCombined, LayoutDashboard, ReceiptText, Target, FileUp, LogOut, Settings, ChevronLeft, ChevronRight, RotateCw, Eye, EyeOff, LockKeyhole, Sparkles } from "lucide-react";
+import { Wallet, Plus, Trash2, TrendingUp, TrendingDown, Search, X, Menu, ShieldCheck, CreditCard, ChartNoAxesCombined, LayoutDashboard, ReceiptText, Target, FileUp, LogOut, Settings, ChevronLeft, ChevronRight, RotateCw, Eye, EyeOff, LockKeyhole, Sparkles } from "lucide-react";
 import { formatSAR } from "@/lib/format";
 import { createClient } from "@/lib/supabase/client";
 
