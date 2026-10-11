@@ -92,6 +92,7 @@ export default function Home() {
   const [notice,setNotice] = useState("");
   const [debts,setDebts] = useState<Debt[]>([]);
   const [expandedDebtId,setExpandedDebtId] = useState<string|null>(null);
+  const [paymentAccountId,setPaymentAccountId] = useState("");
   const [installments,setInstallments] = useState<DebtInstallment[]>([]);
   const [debtType,setDebtType] = useState<"fixed"|"variable">("fixed");
   const [debtProvider,setDebtProvider] = useState("");
@@ -348,10 +349,11 @@ export default function Home() {
   }
   async function markInstallmentPaid(item:DebtInstallment){
     if(!user||item.paid_at||busy)return;
-    if(!accountId){setNotice("تعذر تحديد الحساب المالي. حدّث الصفحة وحاول مجددًا.");return;}
+    const payFrom=paymentAccountId||(selectedAccountId!=="all"?selectedAccountId:accountId);
+    if(!payFrom){setNotice("اختر الحساب الذي تريد السداد منه.");return;}
     setBusy(true);setNotice("");
     try{
-      const {error}=await supabase.rpc("pay_debt_installment",{p_installment_id:item.id,p_account_id:accountId});
+      const {error}=await supabase.rpc("pay_debt_installment",{p_installment_id:item.id,p_account_id:payFrom});
       if(error)throw error;
       await Promise.all([loadTransactions(user.id),refreshDebts(user.id)]);
       setNotice("تم تسجيل سداد القسط وإضافته إلى المصروفات، وتم تحديث الرصيد.");
@@ -602,7 +604,7 @@ export default function Home() {
           <div className="bar" style={{marginTop:10}}><span style={{width:Math.min(100,pct)+"%",background:spent>limit?"#dc2626":undefined}}/></div><small style={{display:"block",marginTop:6,color:"var(--muted)"}}>{pct}% من الميزانية مستخدم</small>
         </article>})}</div>}
       </section></>}
-      {active==="الديون والأقساط" && <><section className="panel">
+      {active==="الديون والأقساط" && <><section className="panel"><label className="settingsLabel">سداد الأقساط من حساب<select value={paymentAccountId||(selectedAccountId!=="all"?selectedAccountId:accountId)||""} onChange={e=>setPaymentAccountId(e.target.value)}>{accounts.map(a=><option key={a.id} value={a.id}>{a.name} — {formatSAR(a.opening_balance_minor/100+tx.filter(t=>t.accountId===a.id).reduce((sum,t)=>sum+(t.kind==="income"?t.amount:-t.amount),0)+transfers.filter(x=>x.to_account_id===a.id).reduce((sum,x)=>sum+Number(x.amount_minor)/100,0)-transfers.filter(x=>x.from_account_id===a.id).reduce((sum,x)=>sum+Number(x.amount_minor)/100,0))}</option>)}</select></label>
       <div className="panelHead"><div><h3>الالتزامات والأقساط</h3><p>مواعيد الاستحقاق والمتأخرات والمدفوعات</p></div><button className="primary" onClick={()=>setDebtForm(!debtForm)}><Plus size={17}/>{debtForm?"إلغاء":"إضافة التزام"}</button></div>
       {debtForm&&<form onSubmit={saveDebt} style={{display:"grid",gap:18,padding:20,background:"var(--card)",border:"1px solid var(--line)",borderRadius:16,marginBottom:20}}>
         <div><h3 style={{margin:"0 0 6px"}}>بيانات القسط</h3><p style={{margin:0,color:"var(--muted)",fontSize:13,lineHeight:1.8}}>ينشأ تصنيف تلقائيًا تحت «الأقساط»، ويرتبط به كل سداد لهذا الالتزام.</p></div>
