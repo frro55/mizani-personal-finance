@@ -402,3 +402,11 @@
 .accountsDeleteHint{margin:15px 0 0;color:var(--muted);font-size:12px;line-height:1.8}
 @media(max-width:760px){.accountsGrid{grid-template-columns:1fr;gap:14px}.accountsHero{padding:22px;gap:12px}.accountsHeroIcon{width:82px;height:82px;border-radius:22px}.accountsHeroIcon svg{width:34px;height:34px}.accountsHeroIcon span{font-size:11px}.accountsHeroStats{gap:24px}.accountNewTile{min-height:170px}.accountsCreatePanel .accountCreateForm{grid-template-columns:1fr}}
 @media(max-width:420px){.accountsHeroIcon{display:none}.accountsHeroStats{gap:20px}.accountsHeroStats strong{font-size:20px}.accountsSectionHeading{align-items:flex-start}.accountsAddButton{padding:10px;font-size:12px}.accountCardSelect{padding:19px}.accountDetailBalance{font-size:22px}}
+
+.accountRenameButton{display:flex;align-items:center;justify-content:center;gap:6px;border:1px solid rgba(96,165,250,.28);background:rgba(96,165,250,.09);color:#93c5fd;border-radius:10px;padding:10px 12px;font-size:12px;font-weight:700}
+.accountRenameForm{display:grid;gap:12px;padding:0 18px 18px}
+.accountRenameForm label{display:grid;gap:7px;color:var(--muted);font-size:12px;font-weight:700}
+.accountRenameForm input{width:100%;box-sizing:border-box;border:1px solid var(--line);border-radius:10px;padding:11px 12px;background:var(--bg);color:var(--ink);font:inherit}
+.accountRenameForm>div{display:flex;gap:8px}
+.accountRenameForm>div button{flex:1;min-height:38px;border-radius:9px;font-size:12px;font-weight:700}
+@media(max-width:420px){.accountDetailActions{flex-wrap:wrap}.accountDetailActions .accountChoose,.accountDetailActions .accountChosen{flex:1 1 42%}.accountDetailActions .accountRenameButton,.accountDetailActions .accountDeleteButton{flex:1 1 40%}}
