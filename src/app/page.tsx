@@ -5,7 +5,7 @@ import { Wallet, Plus, TrendingUp, TrendingDown, Search, X, Menu, ShieldCheck, C
 import { formatSAR } from "@/lib/format";
 import { createClient } from "@/lib/supabase/client";
 
-type Tx = { id: string; title: string; notes: string; category: string; categoryId: string | null; date: string; amount: number; kind: "income" | "expense" };
+type Tx = { id: string; title: string; notes: string; category: string; categoryId: string | null; date: string; amount: number; kind: "income" | "expense"; accountId:string };
 type TransactionRow = { id: string; type: "income" | "expense"; amount_minor: number | string; occurred_at: string; description: string | null; category_id: string | null; categories: { name: string } | { name: string }[] | null };
 type Debt = { id:string; name:string; current_balance_minor:number; installment_minor:number; next_due_date:string|null; debt_type:"fixed"|"variable"; provider:string; monthly_due_day:number|null; total_installments:number|null };
 type DebtInstallment = { id:string; debt_id:string; installment_number:number; due_date:string; amount_minor:number; paid_at:string|null; payment_note:string };
@@ -16,7 +16,7 @@ function riyadhDateKey(value:string|Date){const parts=new Intl.DateTimeFormat("e
 function errorMessage(error: unknown, fallback: string) {
   return error instanceof Error ? error.message : fallback;
 }
-const nav = [["نظرة عامة",LayoutDashboard],["العمليات المالية",ReceiptText],["الميزانيات",Target],["الديون والأقساط",CreditCard],["التقارير والتحليلات",ChartNoAxesCombined],["الإعدادات",Settings]] as const;
+const nav = [["نظرة عامة",LayoutDashboard],["العمليات المالية",ReceiptText],["الحسابات",Wallet],["الميزانيات",Target],["الديون والأقساط",CreditCard],["التقارير والتحليلات",ChartNoAxesCombined],["الإعدادات",Settings]] as const;
 const expenseCategories = ["السكن","الأكل والمطاعم","السيارة والمواصلات","الفواتير","التسوق","الصحة","الالتزامات","متفرقات"] as const;
 const incomeCategories = ["الراتب","دخل إضافي","مكافآت","دخل آخر"] as const;
 const expenseHierarchy:Record<string,string[]> = {"السكن":["الإيجار","الكهرباء والمياه"],"الأكل والمطاعم":["مطاعم","مقاضي البيت","القهوة"],"السيارة والمواصلات":["البنزين","الصيانة والزيت","غسيل السيارة"],"الفواتير":["الجوال والإنترنت","فواتير أخرى"],"التسوق":["ملابس","مشتريات شخصية"],"الصحة":["أدوية","مواعيد وعلاج"],"الالتزامات":["أقساط","رسوم أخرى"],"متفرقات":["مصروف آخر"]};
@@ -45,6 +45,15 @@ export default function Home() {
   const [busy,setBusy] = useState(false);
   const [tx,setTx] = useState<Tx[]>([]);
   const [accountId,setAccountId] = useState<string|null>(null);
+  const [accounts,setAccounts] = useState<{id:string;name:string;opening_balance_minor:number}[]>([]);
+  const [selectedAccountId,setSelectedAccountId] = useState<string>("all");
+  const [accountName,setAccountName] = useState("");
+  const [accountOpening,setAccountOpening] = useState("0");
+  const [transferOpen,setTransferOpen] = useState(false);
+  const [transferFrom,setTransferFrom] = useState("");
+  const [transferTo,setTransferTo] = useState("");
+  const [transferAmount,setTransferAmount] = useState("");
+  const [transferNote,setTransferNote] = useState("");
   const [search,setSearch] = useState("");
   const [modal,setModal] = useState(false);
   const [kind,setKind] = useState<"income"|"expense">("expense");
@@ -86,7 +95,7 @@ export default function Home() {
   const [debtProvider,setDebtProvider] = useState("");
   const [debtTotalCount,setDebtTotalCount] = useState("12");
   const [variableRows,setVariableRows] = useState<VariableRow[]>([{due_date:riyadhDateKey(new Date()),amount:""}]);
-  const [budgets,setBudgets] = useState<{id:string;name:string;amount_minor:number;period:string;starts_on:string;ends_on:string|null;category_id:string|null;categories:{name:string}|{name:string}[]|null}[]>([]);
+  const [budgets,setBudgets] = useState<{id:string;name:string;amount_minor:number;period:string;starts_on:string;ends_on:string|null;category_id:string|null;account_id:string|null;categories:{name:string}|{name:string}[]|null}[]>([]);
   const [budgetForm,setBudgetForm] = useState(false);
   const [budgetName,setBudgetName] = useState("");
   const [budgetAmount,setBudgetAmount] = useState("");
@@ -142,25 +151,29 @@ export default function Home() {
   const loadTransactions = useCallback(async (uid:string) => {
     setBusy(true); setNotice("");
     try {
-      const {data:accounts,error:accountError} = await supabase.from("accounts").select("id").eq("user_id",uid).limit(1);
+      let {data:accountRows,error:accountError} = await supabase.from("accounts").select("id,name,opening_balance_minor").eq("user_id",uid).order("created_at",{ascending:true});
       if (accountError) throw accountError;
-      let aid = accounts?.[0]?.id as string|undefined;
-      if (!aid) {
-        const {data:newAccount,error} = await supabase.from("accounts").insert({user_id:uid,name:"حسابي الرئيسي",currency:"SAR"}).select("id").single();
+      if (!accountRows?.length) {
+        const {data:newAccount,error} = await supabase.from("accounts").insert({user_id:uid,name:"حسابي الرئيسي",currency:"SAR",opening_balance_minor:0}).select("id,name,opening_balance_minor").single();
         if (error) throw error;
-        aid = newAccount.id;
+        accountRows=[newAccount];
       }
+      const loadedAccounts=(accountRows??[]).map(a=>({id:a.id,name:a.name,opening_balance_minor:Number(a.opening_balance_minor||0)}));
+      setAccounts(loadedAccounts);
+      const aid = (selectedAccountId!=="all"&&loadedAccounts.some(a=>a.id===selectedAccountId)?selectedAccountId:loadedAccounts[0]?.id) as string|undefined;
       if (!aid) throw new Error("تعذر إنشاء الحساب المالي.");
       setAccountId(aid);
-      const {data,error} = await supabase.from("transactions").select("id,type,amount_minor,occurred_at,description,category_id,categories(name)").eq("user_id",uid).order("occurred_at",{ascending:false});
+      if(!transferFrom)setTransferFrom(aid);
+      if(!transferTo)setTransferTo(loadedAccounts.find(a=>a.id!==aid)?.id||"");
+      const {data,error} = await supabase.from("transactions").select("id,type,amount_minor,occurred_at,description,category_id,account_id,categories(name)").eq("user_id",uid).order("occurred_at",{ascending:false});
       if (error) throw error;
-      setTx(((data ?? []) as unknown as TransactionRow[]).map((row) => {const categoryName=(Array.isArray(row.categories)?row.categories[0]?.name:row.categories?.name)?.trim()||"بدون تصنيف";return {id:row.id,title:categoryName,notes:row.description||"",category:categoryName,categoryId:row.category_id,date:riyadhDateKey(row.occurred_at),amount:Number(row.amount_minor)/100,kind:row.type};}));
+      setTx(((data ?? []) as unknown as TransactionRow[]).map((row) => {const categoryName=(Array.isArray(row.categories)?row.categories[0]?.name:row.categories?.name)?.trim()||"بدون تصنيف";return {id:row.id,title:categoryName,notes:row.description||"",category:categoryName,categoryId:row.category_id,date:riyadhDateKey(row.occurred_at),amount:Number(row.amount_minor)/100,kind:row.type,accountId:row.account_id};}));
     } catch (e:unknown) {
       setNotice(errorMessage(e, "تعذر تحميل البيانات. تحقق من إعدادات Supabase والصلاحيات."));
     } finally { setBusy(false); }
-  },[supabase]);
+  },[supabase,selectedAccountId,transferFrom,transferTo]);
 
-  useEffect(() => { if(user) void loadTransactions(user.id); else {setTx([]);setAccountId(null);} },[user,loadTransactions]);
+  useEffect(() => { if(user) void loadTransactions(user.id); else {setTx([]);setAccountId(null);setAccounts([]);setSelectedAccountId("all");} },[user,loadTransactions]);
 
   async function submitAuth(e:React.FormEvent) {
     e.preventDefault(); setBusy(true); setAuthMessage("");
@@ -198,7 +211,7 @@ export default function Home() {
         if(!categoryId){const {data:nc,error}=await supabase.from("categories").insert({user_id:user.id,name:category,applies_to:"income",parent_id:null}).select("id").single();if(error)throw error;categoryId=nc.id;}
       }
       const signedAmount=Math.round(n*100)*(kind==="expense"&&isRefund?-1:1);
-      const {error} = await supabase.from("transactions").insert({user_id:user.id,account_id:accountId,category_id:categoryId,type:kind,amount_minor:signedAmount,description:notes.trim(),occurred_at:new Date().toISOString()});
+      const {error} = await supabase.from("transactions").insert({user_id:user.id,account_id:selectedAccountId!=="all"?selectedAccountId:accountId,category_id:categoryId,type:kind,amount_minor:signedAmount,description:notes.trim(),occurred_at:new Date().toISOString()});
       if(error) throw error;
       await loadTransactions(user.id);
       setNotes("");setAmount("");setIsRefund(false);if(kind==="income"){setCategory("الراتب");}else{const defaultParent=personalCategories.find(item=>!item.parent_id&&item.applies_to==="expense"&&item.name==="متفرقات")||personalCategories.find(item=>!item.parent_id&&item.applies_to==="expense");if(defaultParent){setMainCategory(defaultParent.id);const defaultChild=personalCategories.find(item=>item.parent_id===defaultParent.id);setCategory(defaultChild?.name||defaultParent.name);}}setModal(false);setNotice("تم حفظ العملية في قاعدة البيانات.");
@@ -260,7 +273,7 @@ export default function Home() {
       const selectedCategory=personalCategories.find(c=>c.id===budgetCategory&&c.applies_to==="expense");
       if(!selectedCategory)throw new Error("اختر تصنيفًا من التصنيفات الموجودة في الإعدادات.");
       const categoryId=selectedCategory.id;
-      const {error}=await supabase.from("budgets").insert({user_id:user.id,category_id:categoryId,name:budgetName.trim(),amount_minor:amountMinor,period:budgetPeriod,starts_on:budgetStart,ends_on:dateKey(end)});
+      const {error}=await supabase.from("budgets").insert({user_id:user.id,category_id:categoryId,account_id:selectedAccountId==="all"?null:selectedAccountId,name:budgetName.trim(),amount_minor:amountMinor,period:budgetPeriod,starts_on:budgetStart,ends_on:dateKey(end)});
       if(error)throw error;
       const {data,error:loadError}=await supabase.from("budgets").select("id,name,amount_minor,period,starts_on,ends_on,category_id,categories(name)").eq("user_id",user.id).order("starts_on",{ascending:false});
       if(loadError)throw loadError;setBudgets((data??[]) as typeof budgets);setBudgetName("");setBudgetAmount("");setBudgetForm(false);setNotice("تم حفظ الميزانية بنجاح.");
@@ -275,7 +288,7 @@ export default function Home() {
     const selected=personalCategories.find(item=>item.id===b.category_id);
     if(!selected)return 0;
     const categoryIds=new Set(selected.parent_id?[selected.id]:[selected.id,...personalCategories.filter(item=>item.parent_id===selected.id).map(item=>item.id)]);
-    return periodTx.filter(t=>t.kind==="expense"&&t.categoryId!==null&&categoryIds.has(t.categoryId)).reduce((sum,t)=>sum+Math.round(t.amount*100),0);
+    return periodTx.filter(t=>t.kind==="expense"&&t.categoryId!==null&&categoryIds.has(t.categoryId)&&(b.account_id===null||t.accountId===b.account_id)).reduce((sum,t)=>sum+Math.round(t.amount*100),0);
   }
 
   function addVariableRow(){setVariableRows(rows=>[...rows,{due_date:rows[rows.length-1]?.due_date||riyadhDateKey(new Date()),amount:""}]);}
@@ -451,13 +464,14 @@ export default function Home() {
       </div>}
     </div>;
   }
-  const periodTx=useMemo(()=>tx.filter(t=>t.date>=financialPeriod.start&&t.date<=financialPeriod.end),[tx,financialPeriod.start,financialPeriod.end]);
+  const accountTx=useMemo(()=>selectedAccountId==="all"?tx:tx.filter(t=>t.accountId===selectedAccountId),[tx,selectedAccountId]);
+  const periodTx=useMemo(()=>accountTx.filter(t=>t.date>=financialPeriod.start&&t.date<=financialPeriod.end),[accountTx,financialPeriod.start,financialPeriod.end]);
   const income=useMemo(()=>periodTx.filter(t=>t.kind==="income").reduce((sum,t)=>sum+t.amount,0),[periodTx]);
   const expense=useMemo(()=>periodTx.filter(t=>t.kind==="expense").reduce((sum,t)=>sum+t.amount,0),[periodTx]);
   const reportExpenseCategories=useMemo(()=>{const totals=new Map<string,number>();periodTx.filter(t=>t.kind==="expense").forEach(t=>{const cat=personalCategories.find(c=>c.id===t.categoryId);const parent=cat?.parent_id?personalCategories.find(c=>c.id===cat.parent_id):cat;const name=reportCategoryLevel==="main"?(parent?.name||t.category):(cat?.parent_id?t.category:(cat&&personalCategories.some(c=>c.parent_id===cat.id)?cat.name+" (رئيسي)":t.category));totals.set(name,(totals.get(name)||0)+t.amount);});return Array.from(totals.entries()).map(([name,value])=>({name,value})).filter(item=>item.value>0).sort((a,b)=>b.value-a.value);},[periodTx,personalCategories,reportCategoryLevel]);
   const reportPieItems=useMemo(()=>{const top=reportExpenseCategories.slice(0,5);const rest=reportExpenseCategories.slice(5).reduce((sum,item)=>sum+item.value,0);return rest>0?[...top,{name:"تصنيفات أخرى",value:rest}]:top;},[reportExpenseCategories]);
   const reportPieGradient=useMemo(()=>{const colors=["#36b68b","#5b8def","#f0b44c","#e87979","#a78bfa","#94a3b8"];const total=reportPieItems.reduce((sum,item)=>sum+item.value,0);if(!total)return "conic-gradient(var(--line) 0deg 360deg)";let cursor=0;return "conic-gradient("+reportPieItems.map((item,index)=>{const start=cursor;cursor+=item.value/total*360;return colors[index%colors.length]+" "+start+"deg "+cursor+"deg";}).join(",")+")";},[reportPieItems]);
-  const reportMonthlyTrend=useMemo(()=>{const base=new Date(financialPeriod.start+"T12:00:00");return Array.from({length:6},(_,index)=>{const date=new Date(base.getFullYear(),base.getMonth()-5+index,1,12);const key=date.getFullYear()+"-"+String(date.getMonth()+1).padStart(2,"0");const rows=tx.filter(t=>t.date.startsWith(key));return {key,label:new Intl.DateTimeFormat("en",{month:"short"}).format(date),income:rows.filter(t=>t.kind==="income").reduce((sum,t)=>sum+t.amount,0),expense:rows.filter(t=>t.kind==="expense").reduce((sum,t)=>sum+t.amount,0),selected:key===financialPeriod.start.slice(0,7)};});},[tx,financialPeriod.start]);
+  const reportMonthlyTrend=useMemo(()=>{const base=new Date(financialPeriod.start+"T12:00:00");return Array.from({length:6},(_,index)=>{const date=new Date(base.getFullYear(),base.getMonth()-5+index,1,12);const key=date.getFullYear()+"-"+String(date.getMonth()+1).padStart(2,"0");const rows=accountTx.filter(t=>t.date.startsWith(key));return {key,label:new Intl.DateTimeFormat("en",{month:"short"}).format(date),income:rows.filter(t=>t.kind==="income").reduce((sum,t)=>sum+t.amount,0),expense:rows.filter(t=>t.kind==="expense").reduce((sum,t)=>sum+t.amount,0),selected:key===financialPeriod.start.slice(0,7)};});},[accountTx,financialPeriod.start]);
   const reportMaxMonth=Math.max(1,...reportMonthlyTrend.flatMap(m=>[m.income,m.expense]));
   const monthlyInstallments=useMemo(()=>installments.filter(item=>!item.paid_at&&item.due_date>=financialPeriod.start&&item.due_date<=financialPeriod.end).reduce((sum,item)=>sum+Number(item.amount_minor)/100,0),[installments,financialPeriod.start,financialPeriod.end]);
   const monthlyInstallmentCount=useMemo(()=>installments.filter(item=>!item.paid_at&&item.due_date>=financialPeriod.start&&item.due_date<=financialPeriod.end).length,[installments,financialPeriod.start,financialPeriod.end]);
