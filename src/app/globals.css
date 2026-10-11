@@ -416,3 +416,49 @@
 .accountsModalActions{display:grid;grid-template-columns:1fr 1fr;gap:10px}
 .accountsModalActions button{display:flex;align-items:center;justify-content:center;gap:7px;min-height:46px}
 @media(max-width:520px){.accountsCreateModal{padding:20px}.accountsModalActions{grid-template-columns:1fr 1fr}}
+
+
+/* Smaller mobile wallet cards and a distinct primary/all-wallet card */
+.accountCard.allAccounts{background:linear-gradient(130deg,#242b53 0%,#493b78 52%,#6b4b8e 100%)}
+.accountCard.accountTone0{background:linear-gradient(130deg,#12334b 0%,#176b78 55%,#168a7c 100%)}
+.accountCard.accountTone1{background:linear-gradient(130deg,#202d4d 0%,#3b4f7c 55%,#536b9b 100%)}
+.accountCard.accountTone2{background:linear-gradient(130deg,#3d284f 0%,#744477 55%,#945b85 100%)}
+.accountCard.accountTone3{background:linear-gradient(130deg,#42321b 0%,#86602a 55%,#aa7838 100%)}
+@media(max-width:650px){
+ .accountsPage{gap:18px}
+ .accountsHero{padding:18px;border-radius:20px}
+ .accountsHero h2{font-size:24px}
+ .accountsHero p{font-size:12px;line-height:1.7}
+ .accountsHeroStats{margin-top:16px;gap:20px}
+ .accountsHeroStats strong{font-size:19px}
+ .accountsGrid{gap:12px}
+ .accountCardSelect{padding:16px;gap:8px}
+ .accountMiniLogo{width:32px;height:32px;border-radius:10px}
+ .accountDetailBrand{font-size:13px}
+ .accountDetailName{font-size:19px}
+ .accountDetailBalance{font-size:22px}
+ .accountDetailFoot{font-size:10px}
+ .accountDetailStats{padding:12px 14px 10px;gap:8px}
+ .accountDetailStats small{font-size:10px}
+ .accountDetailStats b{font-size:12px}
+ .accountDetailActions{padding:0 12px 12px;gap:7px}
+ .accountDetailActions button{padding:8px 9px;font-size:11px}
+ .accountNewTile{min-height:150px;padding:16px;gap:9px;border-radius:17px}
+ .accountNewPlus{width:48px;height:48px;border-radius:15px}
+ .accountNewTile strong{font-size:14px}
+ .accountNewTile small{font-size:11px}
+ .accountCarousel{gap:10px}
+ .accountCard{flex-basis:min(280px,78vw);min-height:165px;padding:16px;border-radius:18px;gap:7px}
+ .accountCardBrand{font-size:14px}
+ .accountCardBrand svg{width:20px;height:20px}
+ .accountCard b{font-size:17px}
+ .accountCard small{font-size:11px}
+ .accountCard strong{font-size:22px}
+}
+@media(max-width:390px){
+ .accountCard{flex-basis:76vw;min-height:150px;padding:14px}
+ .accountCard strong{font-size:20px}
+ .accountDetailName{font-size:18px}
+ .accountDetailBalance{font-size:20px}
+ .accountDetailActions button{font-size:10px;padding:8px 7px}
+}
