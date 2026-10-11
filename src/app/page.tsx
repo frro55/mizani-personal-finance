@@ -272,7 +272,7 @@ export default function Home() {
     try{
       await loadTransactions(user.id);
       const results=await Promise.all([
-        supabase.from("budgets").select("id,name,amount_minor,period,starts_on,ends_on,category_id,categories(name)").eq("user_id",user.id).order("starts_on",{ascending:false}),
+        supabase.from("budgets").select("id,name,amount_minor,period,starts_on,ends_on,category_id,account_id,categories(name)").eq("user_id",user.id).order("starts_on",{ascending:false}),
         supabase.from("debts").select("id,name,current_balance_minor,installment_minor,next_due_date,debt_type,provider,monthly_due_day,total_installments").eq("user_id",user.id).order("created_at",{ascending:false}),
         supabase.from("debt_installments").select("id,debt_id,installment_number,due_date,amount_minor,paid_at,payment_note").eq("user_id",user.id).order("due_date",{ascending:true})
       ]);
@@ -308,7 +308,7 @@ export default function Home() {
       const categoryId=selectedCategory.id;
       const {error}=await supabase.from("budgets").insert({user_id:user.id,category_id:categoryId,account_id:budgetAccount==="all"?null:budgetAccount,name:budgetName.trim(),amount_minor:amountMinor,period:budgetPeriod,starts_on:budgetStart,ends_on:dateKey(end)});
       if(error)throw error;
-      const {data,error:loadError}=await supabase.from("budgets").select("id,name,amount_minor,period,starts_on,ends_on,category_id,categories(name)").eq("user_id",user.id).order("starts_on",{ascending:false});
+      const {data,error:loadError}=await supabase.from("budgets").select("id,name,amount_minor,period,starts_on,ends_on,category_id,account_id,categories(name)").eq("user_id",user.id).order("starts_on",{ascending:false});
       if(loadError)throw loadError;setBudgets((data??[]) as typeof budgets);setBudgetName("");setBudgetAmount("");setBudgetForm(false);setNotice("تم حفظ الميزانية بنجاح.");
     } catch(e:unknown){setNotice(errorMessage(e,"تعذر حفظ الميزانية."));} finally{setBusy(false);}
   }
