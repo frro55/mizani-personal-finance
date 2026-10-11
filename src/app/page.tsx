@@ -191,7 +191,7 @@ export default function Home() {
     e.preventDefault();if(!user)return;const name=accountName.trim();const opening=Math.round(Number(accountOpening)*100);
     if(!name||!Number.isFinite(opening)||opening<0){setNotice("أدخل اسم الحساب ورصيدًا افتتاحيًا صحيحًا.");return;}
     setBusy(true);setNotice("");
-    try{const {data,error}=await supabase.from("accounts").insert({user_id:user.id,name,currency:"SAR",opening_balance_minor:opening}).select("id").single();if(error)throw error;setAccountName("");setAccountOpening("0");setSelectedAccountId(data.id);await loadTransactions(user.id);setNotice("تم إنشاء الحساب بنجاح.");}
+    try{const {data,error}=await supabase.from("accounts").insert({user_id:user.id,name,currency:"SAR",opening_balance_minor:opening}).select("id").single();if(error)throw error;setAccountName("");setAccountOpening("0");setSelectedAccountId(data.id);setShowCreateAccount(false);await loadTransactions(user.id);setNotice("تم إنشاء الحساب بنجاح.");}
     catch(e:unknown){setNotice(errorMessage(e,"تعذر إنشاء الحساب."));}finally{setBusy(false);}
   }
   async function renameAccount(e:React.FormEvent){
