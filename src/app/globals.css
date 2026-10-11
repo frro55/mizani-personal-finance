@@ -328,14 +328,14 @@
 .cashflowCards .availableCard p{font-size:13px;line-height:1.65;margin:0;color:#fde68a;min-height:2.8em}
 .cashflowCards .availableCard .moneyOut{color:#f87171!important}
 .cashflowCards .availableCard .moneyIn{color:#facc15!important}
-.homeQuickActions,.homeStatsActions{display:grid!important;grid-template-columns:minmax(0,1fr) minmax(0,1fr) 76px;gap:10px;align-items:stretch}
+.homeQuickActions,.homeStatsActions{display:grid!important;grid-template-columns:minmax(0,1fr) 76px minmax(0,1fr);gap:10px;align-items:stretch}
 .homeQuickActions>button,.homeStatsActions>button{width:100%;min-width:0;margin:0;box-sizing:border-box}
-.homeQuickActions .transferAction,.homeStatsActions .transferAction{grid-column:3;grid-row:1;padding:10px 5px;min-width:0;display:flex;align-items:center;justify-content:center;gap:5px;font-size:13px}
+.homeQuickActions .transferAction,.homeStatsActions .transferAction{grid-column:2;grid-row:1;padding:10px 5px;min-width:0;display:flex;align-items:center;justify-content:center;gap:5px;font-size:13px}
 @media(max-width:650px){
  .cashflowCards{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}
  .cashflowCards .availableCard{height:100%;min-height:0;padding:15px;gap:10px}
  .cashflowCards .availableCard h2{font-size:clamp(17px,4.2vw,25px);letter-spacing:-.7px}
  .cashflowCards .availableCard p{font-size:12px;line-height:1.65;min-height:2.5em}
- .homeQuickActions,.homeStatsActions{grid-template-columns:minmax(0,1fr) minmax(0,1fr) 64px;gap:7px}
+ .homeQuickActions,.homeStatsActions{grid-template-columns:minmax(0,1fr) 64px minmax(0,1fr);gap:7px}
  .homeQuickActions .transferAction,.homeStatsActions .transferAction{font-size:12px;padding:8px 3px}
 }
