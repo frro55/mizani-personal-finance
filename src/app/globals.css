@@ -287,3 +287,33 @@
 :root[data-theme="light"] .debtStatusLate{color:#b91c1c!important}
 :root[data-theme="light"] .debtStatusUnpaid{color:#92400e!important}
 @media(max-width:480px){.debtRenameButton{min-height:32px!important;padding:5px 9px!important;font-size:12px!important}.debtStatusSummary{gap:7px}.debtStatusSummary>span{padding:7px 9px;font-size:12px}.debtStatusSummary b{font-size:14px}}
+
+
+/* Multi-account wallet UI */
+.accountCarousel{display:flex;gap:14px;overflow-x:auto;overscroll-behavior-x:contain;scroll-snap-type:x mandatory;padding:4px 2px 14px;margin:0 0 10px;direction:rtl}
+.accountCard{flex:0 0 min(330px,82vw);min-height:190px;scroll-snap-align:start;display:flex;flex-direction:column;align-items:flex-start;justify-content:space-between;gap:9px;padding:20px;border:1px solid rgba(95,225,181,.32);border-radius:22px;background:linear-gradient(135deg,#064e3b 0%,#0f766e 52%,#064e3b 100%);color:#f8fafc;text-align:right;box-shadow:0 12px 28px rgba(0,0,0,.16);position:relative;overflow:hidden}
+.accountCard:before{content:"";position:absolute;width:220px;height:220px;border:1px solid rgba(255,255,255,.12);border-radius:50%;left:-50px;top:40px;box-shadow:0 0 0 26px rgba(255,255,255,.025),0 0 0 52px rgba(255,255,255,.025)}
+.accountCard>*{position:relative}
+.accountCard.selected{outline:3px solid #34d399;outline-offset:2px}
+.accountCardBrand{width:100%;display:flex;align-items:center;gap:9px;font-weight:800;font-size:17px}
+.accountCardBrand span{letter-spacing:.2px}
+.accountCard b{font-size:20px}
+.accountCard small{font-size:12px;color:#c5f5e8}
+.accountCard strong{font-size:25px;font-weight:800;direction:ltr}
+.accountCard.allAccounts{background:linear-gradient(135deg,#172554,#0f766e 80%)}
+.accountCard.addAccountCard{align-items:center;justify-content:center;text-align:center;background:var(--card);color:var(--ink);border:1px dashed var(--green)}
+.accountCard.addAccountCard small{color:var(--muted)}
+.accountPlus{font-size:42px;line-height:1;color:var(--green)}
+.cashflowCards{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin:0 0 20px}
+.cashflowCards .availableCard{min-width:0;min-height:190px;margin:0;padding:22px;border-radius:22px;border-color:#eab308;background:linear-gradient(145deg,#422006,#713f12);color:#fef3c7}
+.cashflowCards .availableCard .eyebrow,.cashflowCards .availableCard p{color:#fde68a}
+.cashflowCards .availableCard h2{font-size:clamp(22px,3vw,32px);overflow-wrap:anywhere}
+.cashflowCards .availableCard .moneyIn,.cashflowCards .availableCard .moneyOut{color:#facc15}
+.cashflowCards .availableOnlyCard{display:block}
+.accountCreateForm{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;align-items:end;margin-top:18px}
+.accountsManagementList{display:grid;gap:10px;margin-top:20px}
+.accountManageItem{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:14px;border:1px solid var(--line);border-radius:12px}
+.accountManageItem>div{display:grid;gap:5px}
+.accountManageItem small{color:var(--muted)}
+.transferAction{align-self:stretch;min-width:78px;border:1px solid #d4a72c;border-radius:14px;background:#713f12;color:#fef3c7;font-weight:800;padding:12px 16px}
+@media(max-width:650px){.cashflowCards{grid-template-columns:repeat(2,minmax(0,1fr));gap:8px}.cashflowCards .availableCard{padding:15px;min-height:165px}.cashflowCards .availableCard p{font-size:12px;line-height:1.7}.accountCard{flex-basis:82vw}.accountCreateForm{grid-template-columns:1fr}.transferAction{min-width:58px;padding:10px 8px}.accountManageItem{align-items:flex-start;flex-wrap:wrap}}
