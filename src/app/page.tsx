@@ -103,6 +103,7 @@ export default function Home() {
   const [budgetName,setBudgetName] = useState("");
   const [budgetAmount,setBudgetAmount] = useState("");
   const [budgetCategory,setBudgetCategory] = useState("");
+  const [budgetAccount,setBudgetAccount] = useState("all");
   const [budgetPeriod,setBudgetPeriod] = useState<"weekly"|"monthly"|"yearly">("monthly");
   const [budgetStart,setBudgetStart] = useState(riyadhDateKey(new Date()));
   const [csvRows,setCsvRows] = useState<{date:string;description:string;amount:number;type:"income"|"expense"}[]>([]);
@@ -304,7 +305,7 @@ export default function Home() {
       const selectedCategory=personalCategories.find(c=>c.id===budgetCategory&&c.applies_to==="expense");
       if(!selectedCategory)throw new Error("اختر تصنيفًا من التصنيفات الموجودة في الإعدادات.");
       const categoryId=selectedCategory.id;
-      const {error}=await supabase.from("budgets").insert({user_id:user.id,category_id:categoryId,account_id:selectedAccountId==="all"?null:selectedAccountId,name:budgetName.trim(),amount_minor:amountMinor,period:budgetPeriod,starts_on:budgetStart,ends_on:dateKey(end)});
+      const {error}=await supabase.from("budgets").insert({user_id:user.id,category_id:categoryId,account_id:budgetAccount==="all"?null:budgetAccount,name:budgetName.trim(),amount_minor:amountMinor,period:budgetPeriod,starts_on:budgetStart,ends_on:dateKey(end)});
       if(error)throw error;
       const {data,error:loadError}=await supabase.from("budgets").select("id,name,amount_minor,period,starts_on,ends_on,category_id,categories(name)").eq("user_id",user.id).order("starts_on",{ascending:false});
       if(loadError)throw loadError;setBudgets((data??[]) as typeof budgets);setBudgetName("");setBudgetAmount("");setBudgetForm(false);setNotice("تم حفظ الميزانية بنجاح.");
@@ -590,7 +591,7 @@ export default function Home() {
         {budgetForm&&<form onSubmit={saveBudget} className="budgetForm">
           <div className="budgetFields">
             <label className="budgetField budgetCategoryField">التصنيف<select required value={budgetCategory} onChange={e=>setBudgetCategory(e.target.value)}><option value="" disabled>اختر تصنيفًا</option>{personalCategories.filter(c=>!c.parent_id&&c.applies_to==="expense").map(parent=><option key={parent.id} value={parent.id}>{parent.name} — رئيسي (يشمل الفروع)</option>)}{personalCategories.filter(c=>c.parent_id&&c.applies_to==="expense").map(child=><option key={child.id} value={child.id}>{personalCategories.find(p=>p.id===child.parent_id)?.name} — {child.name} (فرعي)</option>)}</select><small>التصنيف الرئيسي يحتسب جميع فروعه، والفرعي يحتسب مصروفاته فقط.</small></label>
-            <label className="budgetField">اسم الميزانية<input required value={budgetName} onChange={e=>setBudgetName(e.target.value)} placeholder="مثال: ميزانية المطاعم"/></label>
+            <label className="budgetField">اسم الميزانية<input required value={budgetName} onChange={e=>setBudgetName(e.target.value)} placeholder="مثال: ميزانية المطاعم"/></label><label className="budgetField">الحساب<select value={budgetAccount} onChange={e=>setBudgetAccount(e.target.value)}><option value="all">جميع الحسابات</option>{accounts.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</select></label>
             <label className="budgetField">الحد المالي (ر.س)<input required type="number" min="0.01" step="0.01" value={budgetAmount} onChange={e=>setBudgetAmount(e.target.value)} placeholder="1000"/></label>
             <label className="budgetField">الفترة<select value={budgetPeriod} onChange={e=>setBudgetPeriod(e.target.value as "weekly"|"monthly"|"yearly")}><option value="weekly">أسبوعية</option><option value="monthly">شهرية</option><option value="yearly">سنوية</option></select></label>
             <label className="budgetField">تاريخ البداية<input required type="date" value={budgetStart} onChange={e=>setBudgetStart(e.target.value)}/></label>
