@@ -156,14 +156,15 @@ export default function Home() {
   const loadTransactions = useCallback(async (uid:string) => {
     setBusy(true); setNotice("");
     try {
-      let {data:accountRows,error:accountError} = await supabase.from("accounts").select("id,name,opening_balance_minor").eq("user_id",uid).order("created_at",{ascending:true});
+      const {data:accountRows,error:accountError} = await supabase.from("accounts").select("id,name,opening_balance_minor").eq("user_id",uid).order("created_at",{ascending:true});
       if (accountError) throw accountError;
-      if (!accountRows?.length) {
+      let accountList=accountRows??[];
+      if (!accountList.length) {
         const {data:newAccount,error} = await supabase.from("accounts").insert({user_id:uid,name:"حسابي الرئيسي",currency:"SAR",opening_balance_minor:0}).select("id,name,opening_balance_minor").single();
         if (error) throw error;
-        accountRows=[newAccount];
+        accountList=[newAccount];
       }
-      const loadedAccounts=(accountRows??[]).map(a=>({id:a.id,name:a.name,opening_balance_minor:Number(a.opening_balance_minor||0)}));
+      const loadedAccounts=accountList.map(a=>({id:a.id,name:a.name,opening_balance_minor:Number(a.opening_balance_minor||0)}));
       setAccounts(loadedAccounts);
       const aid = (selectedAccountId!=="all"&&loadedAccounts.some(a=>a.id===selectedAccountId)?selectedAccountId:loadedAccounts[0]?.id) as string|undefined;
       if (!aid) throw new Error("تعذر إنشاء الحساب المالي.");
