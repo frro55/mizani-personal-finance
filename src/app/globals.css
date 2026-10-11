@@ -18,7 +18,7 @@
 }
 
 /* Compact settings and theme modes */
-.settingsPage{display:grid;grid-template-columns:minmax(210px,260px) minmax(0,1fr);gap:16px;align-items:start}
+.settingsPage{display:grid;grid-template-columns:minmax(0,1fr);gap:16px;align-items:start}
 .settingsNav h3,.settingsPanel h3{margin:0 0 14px}
 .settingsChoices{display:grid;gap:6px}
 .settingsChoice{display:flex;align-items:center;justify-content:space-between;gap:8px;text-align:right;width:100%;padding:12px;border:1px solid transparent;border-radius:10px;background:transparent;color:var(--ink)}
