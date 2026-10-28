@@ -69,3 +69,9 @@ alter table public.transactions
 create unique index if not exists transactions_installment_id_unique
   on public.transactions(installment_id) where installment_id is not null;
 create index if not exists categories_user_parent_idx on public.categories(user_id, parent_id);
+
+
+-- Per-debt expense category used when recording installment payments.
+alter table public.debts
+  add column if not exists expense_category_id uuid references public.categories(id) on delete set null;
+create index if not exists debts_expense_category_idx on public.debts(expense_category_id);
